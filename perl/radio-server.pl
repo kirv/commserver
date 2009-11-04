@@ -313,8 +313,15 @@ $exp->expect($timeout, "Enter all zeros") # (000-0000) as your last number in li
 
 my $callbook = FreeWave_Radio::Callbook->new($exp->before());
 my $entry;
-$entry = $callbook->repeater_path_entry($rep_path) if $rep_path;
+$entry = $callbook->repeater_path_entry($rep_path) if defined $rep_path;
 
+# if ( $query{host} eq 'sagriver' ) {
+#     require Data::Dumper;
+#     open CHECKSAG, '>>', '/tmp/checksag';
+#     print CHECKSAG  Data::Dumper::Dumper $callbook;
+#     close CHECKSAG;
+#     }
+# 
 print DEBUG_STEPS qq(using repaater path $entry\n) if defined $entry;
 
 my $entry_type = $entry ? 'exists' : 'new';
