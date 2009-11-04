@@ -14,7 +14,7 @@ use constant TMPDIR => '/tmp/';
 use constant VERBOSE => 0;
 use constant DEBUG => 1;
 use constant STORED_QUERY_FILE => '.query';
-use constant REMOTE_PROMPT_RETRIES => 15;
+use constant REMOTE_PROMPT_RETRIES => 20;
 
 use constant DEBUG_STEPS_FILE => "/tmp/commserver-debug-steps";
 use constant CALL_SUMMARY_FILE => "/var/local/log/commserver-call-summary";
@@ -156,9 +156,14 @@ while ( <> ) { # read input from the client
             }
         }
 
+    elsif ( m/^prompt-retries (.+)$/ ) { # how many CRs to send...
+        $query{prompt_retries} = $1;
+        }
+
     elsif ( my ($prompt) = m/^prompt (.+)$/ ) { # initial prompt to query for 
         $query{prompt} = $prompt;
-        $query{prompt_retries} = REMOTE_PROMPT_RETRIES,
+        $query{prompt_retries} = REMOTE_PROMPT_RETRIES
+            unless $query{prompt_retries};
         }
 
     elsif ( m/^h(elp)?$/i ) { # action command
@@ -434,9 +439,13 @@ if ( $query{prompt} ) {
     print DEBUG_STEPS qq(sending CR\n);
     $exp->expect(1, '-re', ".*"); 
     $exp->send("\r");
-    my $regex_prompt = $query{prompt};
-    $regex_prompt =~ s/([?.[\]+*])/\\\\$1/g;
-    $see_target = $exp->expect(1, '-re', ".*$regex_prompt"); 
+ #  my $regex_prompt = $query{prompt};
+ #  $regex_prompt =~ s/([?.[\]+*])/\\\\$1/g;
+ ## if ( $query{prompt} eq '*' ) {
+ ##     print "PROMPT: was: <*> now <$regex_prompt>\n";
+ ##     }
+ ## $see_target = $exp->expect(1, '-re', ".*$regex_prompt"); 
+    $see_target = $exp->expect(1, $query{prompt}); 
   # while ( ! $see_target && --$prompt_retries ) {
     while ( ! $see_target ) {
         last unless --$prompt_retries;
@@ -478,6 +487,8 @@ log_call_summary();
 ##    reset remote base radio
 ##    gather connection stats
 ##    log info somewhere
+
+exit 0;
 
 sub log_call_summary {
     my ($s, $m, $h, $y, $d) = (localtime $starttime)[0, 1, 2, 5, 7];
