@@ -1,0 +1,24 @@
+#!/bin/sh
+
+cat << END_HELP_SCREEN
+NAME
+    CommServer -- manage communications using FreeWave radios in pt-pt mode
+
+DESCRIPTION
+    Sites are configured in thinobject structures, and that information
+    is used to connect to the site through network and FreeWave radio
+    links.   The radio callbook is rewritten as needed to call the site
+    using a call path which is either static or dynamic.
+
+METHODS
+
+IMPLEMENTATION
+
+SEE ALSO
+
+BUGS
+
+AUTHOR
+    Copyright Ken Irving fnkci@uaf.edu (c) 2009
+    Licensed under the GPL (Gnu Public Library)
+END_HELP_SCREEN
