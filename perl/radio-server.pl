@@ -29,7 +29,7 @@ select STDOUT;
 print DEBUG_STEPS "initializing\n";
 
 my $sitename; # store for call summary output...
-open CALL_SUMMARY, ">>", "/tmp/commserver-radio-paths" or die $!;
+my @call_summary;
 
 my %siteindex;
 init_siteindex(); # NOTE: this also chdirs to the ROOT directory
@@ -260,6 +260,8 @@ print DEBUG_STEPS qq(query parameters:\n),
     qq(    host $query{host}\n),
     qq(    port $query{port}\n);
 
+push @call_summary, $query{host}, $sitename;
+
 my $exp = Expect->new();
 # $exp->exp_internal(1);
 $exp->raw_pty(1); # sets the pty to raw mode
@@ -309,7 +311,7 @@ $entry = $callbook->repeater_path_entry($rep_path) if $rep_path;
 
 print DEBUG_STEPS qq(using repaater path $entry\n) if defined $entry;
 
-my $entry_type = $entry ? 'existing' : 'configure';
+my $entry_type = $entry ? 'path:' : 'new:';
 
 unless ( $entry ) { # existing repeater path was not found, so configure...
     $entry = '8';
@@ -396,10 +398,8 @@ my $dial_string = "ATXC${entry}ATD$query{radio}";
 
 print DEBUG_STEPS qq(ready to dial target radio with $dial_string\n);
 
-$query{host};
-
-print CALL_SUMMARY "$query{host}\t$sitename\t$dial_string\t$entry_type\n";
-close CALL_SUMMARY;
+$rep_path = '' unless $rep_path; # for output...
+push @call_summary, $dial_string, $entry_type, $rep_path;
 
 # $exp->send("ATXC8ATD$query{radio}"); # try to connect to the target radio
 $exp->send($dial_string); # try to connect to the target radio
@@ -407,7 +407,7 @@ $exp->expect($timeout, "OK")  # command was acted upon
     or timedout('no "OK" response from ATDT command');
 print DEBUG_STEPS qq(saw "OK"\n);
 $exp->expect($timeout, "CONNECT")  # first radio (target or repeater) reached
-    or timedout('no "CONNECT" response indicating 1st radio reached');
+    or timedout('no "CONNECT" response');
 print DEBUG_STEPS qq(saw "CONNECT"\n);
 
 my $see_target;
@@ -432,15 +432,27 @@ if ( $query{prompt} ) {
     }
 
 if ( $see_target ) {
-    print DEBUG_STEPS qq(saw logger prompt, sending "CONNECTED" to client\n);
+    print DEBUG_STEPS qq(saw target prompt, sending "CONNECTED" to client\n);
     print "CONNECTED\r\n";
+    push @call_summary, 'ok';
     }
 else {
-    print DEBUG_STEPS qq(no logger prompt, sending "NO_PROMPT_SEEN" to client\n);
+    print DEBUG_STEPS qq(no target prompt, sending "NO_PROMPT_SEEN" to client\n);
     print "NO_PROMPT_SEEN\r\n";
     print DEBUG_STEPS qq(quitting\n);
+    push @call_summary, 'no';
+    log_call_summary();
     die "bye!\n";
     }
+
+log_call_summary();
+
+sub log_call_summary {
+    open CALL_SUMMARY, ">>", "/tmp/commserver-radio-paths" or die $!;
+    print CALL_SUMMARY join(',', @call_summary), "\n";
+    close CALL_SUMMARY;
+    }
+
 
 print DEBUG_STEPS qq(going interactive with client...\n);
 
@@ -459,6 +471,8 @@ print DEBUG_STEPS qq(client has terminated connection\n);
 sub timedout {
     my $msg = shift;
     $msg = 'n/a' unless defined $msg;
+    push @call_summary, "timedout:$msg";
+    log_call_summary();
     print DEBUG_STEPS qq(expect() timed out: $msg\n);
     print "ABORTING CONNECTION\r\n";
     $exp->send("\e\e"); # send escapes in case in radio setup mode
