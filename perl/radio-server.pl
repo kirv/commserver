@@ -108,6 +108,23 @@ while ( <> ) { # read input from the client
         print "ERROR: port value must be numeric\n" unless $port =~ m/^\d+$/;
         }
 
+    elsif ( m/^up(links?)?\s(\S+)(\s(.+))?$/ ) { # list or view uplinks
+        my ($from, $to) = ($2, $4);
+        unless ( $to ) { # list uplinks for "from" site
+            foreach ( list_uplinks($from) ) {
+                print "  $from  $_\n" if defined $_;
+                }
+            }
+        else { # "to" site is also specified
+            my @param;
+            my $up_param = get_uplink($from, $to);
+            while ( my ($key, $val) = each %$up_param ) {
+                push @param, "$val $key";
+                }
+            print "$from  $to {", join(', ', @param), "}\n";
+            }
+        }
+
     elsif ( m/^rad(io)? (.+)$/ ) { # radio number or site
         my $num = get_check_radio_number($2);
         $query{radio} = $num if defined $num;
@@ -540,6 +557,7 @@ sub help_screen {
     rep[eater][s] SITE|N, SITE|N[, ...] -- define repeater list
     save SITE [SUFFIX] -- store settings under given site (optional SUFFIX)
     load SITE [SUFFIX] -- load settings from given site (optional SUFFIX)
+    up[link[s]] SITE [SITE] -- list all uplinks or show details of one
     list -- list all sites and aliases
     help -- display this message
     quit -- close down session
