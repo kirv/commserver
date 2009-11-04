@@ -540,6 +540,7 @@ sub help_screen {
     rep[eater][s] SITE|N, SITE|N[, ...] -- define repeater list
     save SITE [SUFFIX] -- store settings under given site (optional SUFFIX)
     load SITE [SUFFIX] -- load settings from given site (optional SUFFIX)
+    list -- list all sites and aliases
     help -- display this message
     quit -- close down session
     call -- use settings to contact remote site
