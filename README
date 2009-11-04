@@ -1,0 +1,15 @@
+The commserver project aims to provide a thinobject application to manage
+and call remotely located research data sites using FreeWave radios in 
+point-to-point mode.
+
+The current version of commserver has been in use for at least 2 years, 
+probably 2-1/2 years or just under 3.  It is not, however, a thinobject
+application, but rather an ordinary standalone app which assumes a 
+particular structure for its input data.
+
+That input data is vaguely thinobject-like, stored in dot-directories 
+which shadow do-nothing files named for the sites, but actually does
+not make use of the thinobject conventions at all.  A .query file in 
+each site is assumed to contain all the data needed to contact a remote
+site.
+
