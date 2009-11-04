@@ -385,9 +385,9 @@ $timeout = 20;
 
 sleep 1;
 
-print DEBUG_STEPS qq(ready to dial target radio\n);
-
 my $dial_string = "ATXC${entry}ATD$query{radio}";
+
+print DEBUG_STEPS qq(ready to dial target radio with $dial_string\n);
 
 # $exp->send("ATXC8ATD$query{radio}"); # try to connect to the target radio
 $exp->send($dial_string); # try to connect to the target radio
