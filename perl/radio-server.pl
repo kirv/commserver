@@ -142,7 +142,7 @@ while ( <> ) { # read input from the client
         }
 
     elsif ( m/^rep(eater)?s? (.+)$/ ) { # repeater(s)
-        my @rep = split /[\s,]\s*/, $2;
+        my @rep = split /[\s,]\s*/, $2; # delimit by comma and/or spaces
         @rep = map get_check_radio_number($_), @rep;
         if ( @rep == 1 ) { # only one entry, so push onto repeater list:
             push @{$query{repeater}}, $rep[0] if defined $rep[0];
@@ -156,14 +156,12 @@ while ( <> ) { # read input from the client
             }
         }
 
-    elsif ( m/^prompt-retries (.+)$/ ) { # how many CRs to send...
-        $query{prompt_retries} = $1;
+    elsif ( m/^retries\s+(\d+)$/ ) { # how many CRs to send...
+        $query{retries} = $1;
         }
 
     elsif ( my ($prompt) = m/^prompt (.+)$/ ) { # initial prompt to query for 
         $query{prompt} = $prompt;
-        $query{prompt_retries} = REMOTE_PROMPT_RETRIES
-            unless $query{prompt_retries};
         }
 
     elsif ( m/^h(elp)?$/i ) { # action command
@@ -434,8 +432,7 @@ print DEBUG_STEPS qq(saw "CONNECT"\n);
 my $see_target;
 # print "looking for $query{type} prompt...\n" if $query{type};
 if ( $query{prompt} ) {
-  # my $prompt_retries = $query{prompt_retries};
-    my $prompt_retries = REMOTE_PROMPT_RETRIES;
+    my $retries = $query{retries} || REMOTE_PROMPT_RETRIES;
     print DEBUG_STEPS qq(sending CR\n);
     $exp->expect(1, '-re', ".*"); 
     $exp->send("\r");
@@ -446,10 +443,10 @@ if ( $query{prompt} ) {
  ##     }
  ## $see_target = $exp->expect(1, '-re', ".*$regex_prompt"); 
     $see_target = $exp->expect(1, $query{prompt}); 
-  # while ( ! $see_target && --$prompt_retries ) {
+  # while ( ! $see_target && --$retries ) {
     while ( ! $see_target ) {
-        last unless --$prompt_retries;
-        print DEBUG_STEPS qq{sending CR ($prompt_retries retries)\n};
+        last unless --$retries;
+        print DEBUG_STEPS qq{sending CR ($retries retries)\n};
         $exp->send("\r"); # try to get a prompt
         $see_target = $exp->expect(1, $query{prompt}); # wait for 1 second
       # print '.'; # progress indicator
@@ -605,19 +602,21 @@ sub load_query {
         print qq(ERROR: file "$file" not found\n);
         return;
         }
-    unless ( open STORE, "<", $file ) {
+    unless ( open SETTINGS, "<", $file ) {
         print qq(ERROR: file "$file" not opened; $!\n);
         return;
         }
-    while ( <STORE> ) {
+    while ( <SETTINGS> ) {
         chomp;
         ## best would be to run through the above interpreter, but anyway...
         next if m/^\s*$/; # skip blank lines
         next if m/^\s*#/; # skip comments
         my ($tag, $value) = m/^(\S+)\s*(.*)/;
-        next unless defined $tag && defined $value; # but should say something
-        $query{$tag} = $value if $tag =~ m/^host|port|radio|prompt/;
-        if ( $tag =~ m/repeaters?/ && defined $value ) {
+        next unless defined $tag && defined $value; # ...should say something?
+        if ( $tag =~ m/^host|port|radio|prompt|retries$/ ) {
+            $query{$tag} = $value;
+            }
+        elsif ( $tag =~ m/repeaters?/ ) {
             $query{repeater} = [ split /[\s,]\s*/, $value ];
             }
         }
