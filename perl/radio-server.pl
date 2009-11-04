@@ -16,6 +16,8 @@ use constant DEBUG => 1;
 use constant STORED_QUERY_FILE => '.query';
 use constant REMOTE_PROMPT_RETRIES => 15;
 
+my $starttime = time;
+
 my $ok2save;
 while ( my $opt = shift ) {
     $ok2save = 1 if $opt eq '-s';
@@ -311,7 +313,7 @@ $entry = $callbook->repeater_path_entry($rep_path) if $rep_path;
 
 print DEBUG_STEPS qq(using repaater path $entry\n) if defined $entry;
 
-my $entry_type = $entry ? 'path:' : 'new:';
+my $entry_type = $entry ? 'exists' : 'new';
 
 unless ( $entry ) { # existing repeater path was not found, so configure...
     $entry = '8';
@@ -448,8 +450,11 @@ else {
 log_call_summary();
 
 sub log_call_summary {
+    my ($s, $m, $h) = (localtime $starttime)[0, 1, 2];
+    my $hms = sprintf "%02d:%02d:%02d", $h, $m, $s;
+    my $elapsed = time - $starttime;
     open CALL_SUMMARY, ">>", "/tmp/commserver-radio-paths" or die $!;
-    print CALL_SUMMARY join(',', @call_summary), "\n";
+    print CALL_SUMMARY join(',', $hms, @call_summary, "${elapsed}s"), "\n";
     close CALL_SUMMARY;
     }
 
