@@ -552,3 +552,50 @@ sub quit_session { # do any necessary cleanup, and exit
     print "goodbye!\n";
     exit 0;
     }
+
+sub list_uplinks {
+    my $site = shift;
+    unless ( $siteindex{$site} ) {
+        print "? -- site $site not found\n";
+        return undef;
+        }
+    unless ( -d "$siteindex{$site}/UPLINK/" ) {
+        print "no uplinks defined for site $site\n";
+        return undef;
+        }
+    opendir UPLINKS, $siteindex{$site} . "/UPLINK/" or die $!;
+    my @uplinks;
+    while ( my $to_site = readdir UPLINKS ) {
+        next if $to_site =~ m/^\./; # skip . and .. directories or any dot-file
+        $to_site =~ s{::}{/}g;
+        push @uplinks, $to_site;
+        }
+    return @uplinks;
+    }
+
+sub get_uplink {
+    my $site = shift;
+    my $to_site = shift;
+    unless ( $siteindex{$site} ) {
+        print "? -- site $site not found\n";
+        return undef;
+        }
+    unless ( -d "$siteindex{$site}/UPLINK/" ) {
+        print "no uplinks defined for site $site\n";
+        return undef;
+        }
+    $to_site =~ s{/}{::}g;
+    unless ( -e "$siteindex{$site}/UPLINK/$to_site" ) {
+        print "no uplinks defined for site $site\n";
+        return undef;
+        }
+    open UPLINK, '<', "$siteindex{$site}/UPLINK/$to_site" or die $!;
+    my %param;
+    while ( <UPLINK> ) {
+        chomp;
+        next unless my ($val, $key) = m/^(\S+)\s+(\S+)/;
+        $param{$key} = $val;
+        }
+    return \%param;
+    }
+
