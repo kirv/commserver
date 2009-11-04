@@ -396,7 +396,7 @@ print DEBUG_STEPS qq(ready to dial target radio with $dial_string\n);
 
 $query{host};
 
-print CALL_SUMMARY "$query{host}s\t$sitename\t$dial_string\n";
+print CALL_SUMMARY "$query{host}\t$sitename\t$dial_string\n";
 close CALL_SUMMARY;
 
 # $exp->send("ATXC8ATD$query{radio}"); # try to connect to the target radio
