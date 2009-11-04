@@ -1,0 +1,149 @@
+#!/usr/bin/perl -w
+use warnings;
+use strict;
+
+use constant LOCKSDIR => '/var/local/lock/';
+use constant NODEROOT => '/var/local/commserver/';
+use constant IFS => ','; # input field separator (comma)
+use constant NOMINAL_KM => 100; # normalize distance value
+use constant STRICT_UPLINK_SYNTAX => 0; # allow "TAG VALUE" vs "VALUE TAG"
+
+chdir NODEROOT or die "unable to cd to object root directory\n";
+
+# my $site = shift || die "site argument required\n";
+my $site = shift;
+
+my $verbose;
+if ( $site =~ m/-v|--verbose/ ) {
+    $verbose =1;
+    $site = shift;
+    }
+
+die "site argument required\n" unless defined $site;
+
+die qq(site "$site" not found\n) unless -e $site;
+
+my $dob = -l $site ? resolve_symlink($site) : $site;
+$dob =~ s{^(.+/)?([^/]+)$}{$1.$2};
+die qq(site "$site" not found\n) unless -d $dob;
+
+## ASSERT: site exists as a thinobject
+
+exit 0 if -e "$dob/TYPE:BASE";
+
+open PATHS, '<', "$dob/paths" or die qq($site object "paths" file not found\n);
+
+my %link; # hash of from{to} link metrics
+
+## read locks directory only at the start of the program!
+my %locked;
+opendir LOCKS, LOCKSDIR
+    or die qq(failed to open locks directory, ) . LOCKSDIR . "$!\n";
+while ( my $locked = readdir LOCKS ) {
+    next if $locked =~ m/\./;
+    $locked =~ s{::}{/}g;
+  # print "DEBUG locked: $locked\n";
+    $locked{$locked} = 1;
+    }
+closedir LOCKS;
+
+PATH: while ( my $path = <PATHS> ) {
+  # print $path;
+    chomp $path;
+    my @hop = split IFS, $path;
+    my $hops = @hop - 1;
+    die qq($site: no radio link found in $path\n) unless $hops;
+    my $from = shift @hop;
+    my $path_metric = 0;
+    my $path_km = 0;
+    next if exists $locked{$from}; # probably shouldn't happen...
+    while ( my $to = shift @hop ) {
+        my ($to_area) = $to =~ m{^(.+)/};
+        $link{$from}->{$to} = link_metric($from, $to)
+            unless exists $link{$from}->{$to};
+
+        foreach ( qw( km vis ) ) {
+            die qq($from -- $to link missing required "$_" metric\n)
+                unless exists $link{$from}->{$to}->{$_};
+            }
+
+      # next if exists $locked{$to};
+        if ( exists $locked{$to} ) {
+            warn "$to locked; skipping $path\n" if $verbose;
+            next PATH;
+            }
+
+        my $km  = $link{$from}->{$to}->{km};
+        my $vis = $link{$from}->{$to}->{vis};
+      # print "DEBUG: $from --> $to: $km km, $vis vis\n";
+        $path_km += $km;
+        my $hop_metric = $km / NOMINAL_KM;
+        $hop_metric /= $vis**2;
+        $path_metric += $hop_metric;
+
+        $from = $to;
+        }
+    $path_metric *= $hops; # favor fewer hops
+  # print "  $path_metric for path\n";
+    printf "%0.3f (%d hops, %d km) %s\n", $path_metric, $hops, $path_km, $path;
+    }
+
+### subroutines follow...
+
+sub link_metric {
+    my $from = shift;
+    my $to = shift;
+  # print "    link_metric($from - $to)\n";
+  # my $waslink = -l $from;
+    $from = resolve_symlink($from) if -l $from;
+  # print "         ... ($from - $to)\n" if $waslink;
+    $from =~ s{^(.+/)?([^/]+)$}{$1.$2};
+    die qq(site object "$from" not found\n) unless -d $from;
+    $to =~ s{/}{::}g;
+    unless ( -e "$from/UPLINK/$to" ) { # no match for fully qualified "to" name
+        my ($area) = $from =~ m{^(.+)/};
+        my ($to_area) = $to =~ s/^${area}:://;
+        die qq(site "$from" uplink "$to" not found\n)
+            unless ( defined $to_area && -e "$from/UPLINK/$to" );
+        }
+    ## ASSERT: uplink metric file found
+
+    open LINK, "<", NODEROOT . "$from/UPLINK/$to"
+        or die "uplink file $to for $from is not readable\n";
+  # print "DEBUG: opened $from/UPLINK/$to\n";
+    my %metric;
+    while ( <LINK> ) {
+        chomp;
+        next if m/^\s*$/;
+      # print "DEBUG: $from -- $to: $_\n";
+        my ($value, $tag) = split / /; # "40 km", ".8 vis", ...
+        die qq(invalid link metric "$_" in $from/UPLINK/$to\n)
+            unless ( defined $value && defined $tag );
+        if ( $value eq 'km' || $value eq 'vis' ) {
+            die qq("$value $tag" syntax is backward\n) if STRICT_UPLINK_SYNTAX;
+            my $swap_val = $tag;
+            $tag = $value;
+            $value = $swap_val;
+            }
+        unless ( $tag eq 'km' || $tag eq 'vis' ) {
+            die qq(unsupported link metric "$value $tag"\n);
+            }
+
+        $metric{$tag} = $value;
+        }
+    close LINK;
+    return \%metric;
+    }
+
+sub resolve_symlink { # replace with symlink target
+    my $node = shift;
+  # print "DEBUG symlink(): $node\n";
+    die qq($node is not a symlink\n) unless -l NODEROOT . $node;
+    my $symlink = readlink NODEROOT . $node;
+    $node =~ s{/[^/]+}{/$symlink};
+  # print "DEBUG symlink(): $node\n";
+    $node =~ s{[^/.]+/\.\./}{}; # simplify  foo/../bar/etc to bar/etc
+  # print "DEBUG symlink(): $node\n";
+    return $node;
+    }
+

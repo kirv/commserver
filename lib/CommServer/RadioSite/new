@@ -1,0 +1,13 @@
+#!/bin/sh
+
+test -z "$1" && {
+    echo ERROR: no radio number given
+    exit 1
+    }
+
+radio="$1"
+
+pwd
+
+
+
