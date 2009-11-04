@@ -28,6 +28,9 @@ select STDOUT;
 
 print DEBUG_STEPS "initializing\n";
 
+my $sitename; # store for call summary output...
+open CALL_SUMMARY, ">>", "/tmp/commserver-radio-paths" or die $!;
+
 my %siteindex;
 init_siteindex(); # NOTE: this also chdirs to the ROOT directory
 
@@ -188,6 +191,7 @@ while ( <> ) { # read input from the client
         my ($site, undef, $suffix) = $1 =~ m/\s(\S+)(\s+(.*))?/;
         load_query($site, $suffix); # suffix is optional
         $query{action} = 'call';
+        $sitename = $site;
         }
 
     elsif ( m/^load (.+)$/ ) { # load query parameters
@@ -300,7 +304,8 @@ $exp->expect($timeout, "Enter all zeros") # (000-0000) as your last number in li
     or timedout('no radio callbook menu');
 
 my $callbook = FreeWave_Radio::Callbook->new($exp->before());
-my $entry = $callbook->repeater_path_entry($rep_path);
+my $entry;
+$entry = $callbook->repeater_path_entry() if $rep_path;
 
 print DEBUG_STEPS qq(using repaater path $entry\n) if defined $entry;
 
@@ -388,6 +393,11 @@ sleep 1;
 my $dial_string = "ATXC${entry}ATD$query{radio}";
 
 print DEBUG_STEPS qq(ready to dial target radio with $dial_string\n);
+
+$query{host};
+
+print CALL_SUMMARY "$query{host}s\t$sitename\t$dial_string\n";
+close CALL_SUMMARY;
 
 # $exp->send("ATXC8ATD$query{radio}"); # try to connect to the target radio
 $exp->send($dial_string); # try to connect to the target radio
