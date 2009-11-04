@@ -197,136 +197,6 @@ while ( <> ) { # read input from the client
 
 print DEBUG_STEPS "leaving command interpreter\n";
 
-sub get_text_query_params {
-    my @query;
-    foreach my $key ( sort keys %query ) {
-        my $value = $query{$key};
-        unless ( ref $value ) {
-            push @query, "$key $query{$key}";
-            }
-        elsif ( ref $value eq 'ARRAY' ) {
-            push @query, $key;
-            $query[-1] .= 's' if @$value > 1;
-            $query[-1] .= " " . join(", ", @$value);
-            }
-        else { # hash or something??
-            die qq(unsupported value "$value" for "$key"\n);
-            }
-        }
-    return @query;
-    }
-
-sub get_check_radio_number { # get site radio and/or validate number
-    my $num = shift;
-    unless ( $num =~ m/^\d/ ) { ## not numeric, so assume it's a site
-        unless ( exists $siteindex{$num} ) {
-            print qq(ERROR: no site "$num" found\n);
-            return undef;
-            }
-        unless ( open SITE_RADIO, "<", $siteindex{$num} . 'RADIO' ) {
-            print qq(ERROR: no radio number found for site "$num"\n);
-            return undef;
-            }
-        chomp ($num = <SITE_RADIO>);
-        }
-    $num =~ s/^(\d{3})(\d{4})$/$1-$2/; # hyphenate number for readability
-    unless ( $num =~ m/^\d{3}-\d{4}$/ ) {
-        print "ERROR: radio number ($num) must be 7 digits\n";
-        return undef;
-        }
-    return $num;
-    }
-
-sub init_siteindex { # initialize global hash into sites
-    chdir ROOT or die qq(failed to cd to root dir; $!\n);
-    my @sites = ( # the find(1) commands yield: "sitetag fullname fullname":
-        `find -maxdepth 2 -type f -printf "%f %p %p\n"`,    # normal files
-        `find -maxdepth 2 -type l -printf "%f %p %h/%l\n"`, # symlinks
-        );
-    foreach ( @sites ) {
-        chomp;
-        my ($sitetag, $site, $dotdir) = split / /; 
-        $site =~ s{^./}{}; # lose leading directory
-        $dotdir =~ s{([^/]+)$}{.$1/}; # put a dot before the tag name, add a /
-      # print "DEBUG: $sitetag, $site, $dotdir\n";
-        warn qq(warning: site "$sitetag" is duplicate\n)
-            if exists $siteindex{$sitetag} && VERBOSE;
-        $siteindex{$sitetag} = $siteindex{$site} = -d $dotdir ? $dotdir : undef;
-        }
-    } 
-
-sub save_query {
-    my $site = shift;
-    my $suffix = shift;
-    $suffix =~ s/^([^-])/-$1/ if defined $suffix;
-    $suffix = "" unless defined $suffix;
-    unless ( $ok2save ) {
-        print "not authorized to save setttings\n";
-        return;
-        }
-    die qq(site "$site" not found\n) unless -d $siteindex{$site};
-    my $file = $siteindex{$site} . STORED_QUERY_FILE . $suffix;
-    unless ( open STORE, ">", $file ) {
-        print qq(ERROR: failed to open file "$file"; $!\n);
-        }
-     else {
-        foreach ( get_text_query_params() ) {
-            print STORE "$_\n";
-            }
-        }
-    }
-
-sub load_query {
-    my $site = shift;
-    my $suffix = shift;
-    $suffix =~ s/^([^-])/-$1/ if defined $suffix;
-    $suffix = "" unless defined $suffix;
-    die qq(site "$site" not found\n) unless -d $siteindex{$site};
-    my $file = $siteindex{$site} . STORED_QUERY_FILE . $suffix;
-    unless ( -e $file ) {
-        print qq(ERROR: file "$file" not found\n);
-        return;
-        }
-    unless ( open STORE, "<", $file ) {
-        print qq(ERROR: file "$file" not opened; $!\n);
-        return;
-        }
-    while ( <STORE> ) {
-        chomp;
-        ## best would be to run through the above interpreter, but anyway...
-        next if m/^\s*$/; # skip blank lines
-        next if m/^\s*#/; # skip comments
-        my ($tag, $value) = m/^(\S+)\s*(.*)/;
-        next unless defined $tag && defined $value; # but should say something
-        $query{$tag} = $value if $tag =~ m/^host|port|radio|prompt/;
-        if ( $tag =~ m/repeaters?/ && defined $value ) {
-            $query{repeater} = [ split /[\s,]\s*/, $value ];
-            }
-        }
-    }
-
-sub help_screen {
-    print << "    END_HELP";
-    host HOST[:PORT] -- remote base radio host ip address
-    port PORT -- port number on base radio remote host
-    prompt STRING -- server will issue carriage returns until prompt is seen
-    rad[io] SITE|N -- site name or 7-digit radio number
-    rep[eater] SITE|N  -- append repeater number to list of repeaters
-    rep[eater][s] SITE|N, SITE|N[, ...] -- define repeater list
-    save SITE [SUFFIX] -- store settings under given site (optional SUFFIX)
-    load SITE [SUFFIX] -- load settings from given site (optional SUFFIX)
-    help -- display this message
-    quit -- close down session
-    call -- use settings to contact remote site
-    END_HELP
-    
-    }
-
-sub quit_session { # do any necessary cleanup, and exit
-    print "goodbye!\n";
-    exit 0;
-    }
-
 die qq(no ip host specified\n) unless defined $query{host};
 die qq(no ip port specified\n) unless defined $query{port};
 
@@ -550,4 +420,134 @@ sub timedout {
     print "ABORTING CONNECTION\r\n";
     $exp->send("\e\e"); # send escapes in case in radio setup mode
     die qq(expect() timed out: $msg\n);
+    }
+
+sub get_text_query_params {
+    my @query;
+    foreach my $key ( sort keys %query ) {
+        my $value = $query{$key};
+        unless ( ref $value ) {
+            push @query, "$key $query{$key}";
+            }
+        elsif ( ref $value eq 'ARRAY' ) {
+            push @query, $key;
+            $query[-1] .= 's' if @$value > 1;
+            $query[-1] .= " " . join(", ", @$value);
+            }
+        else { # hash or something??
+            die qq(unsupported value "$value" for "$key"\n);
+            }
+        }
+    return @query;
+    }
+
+sub get_check_radio_number { # get site radio and/or validate number
+    my $num = shift;
+    unless ( $num =~ m/^\d/ ) { ## not numeric, so assume it's a site
+        unless ( exists $siteindex{$num} ) {
+            print qq(ERROR: no site "$num" found\n);
+            return undef;
+            }
+        unless ( open SITE_RADIO, "<", $siteindex{$num} . 'RADIO' ) {
+            print qq(ERROR: no radio number found for site "$num"\n);
+            return undef;
+            }
+        chomp ($num = <SITE_RADIO>);
+        }
+    $num =~ s/^(\d{3})(\d{4})$/$1-$2/; # hyphenate number for readability
+    unless ( $num =~ m/^\d{3}-\d{4}$/ ) {
+        print "ERROR: radio number ($num) must be 7 digits\n";
+        return undef;
+        }
+    return $num;
+    }
+
+sub init_siteindex { # initialize global hash into sites
+    chdir ROOT or die qq(failed to cd to root dir; $!\n);
+    my @sites = ( # the find(1) commands yield: "sitetag fullname fullname":
+        `find -maxdepth 2 -type f -printf "%f %p %p\n"`,    # normal files
+        `find -maxdepth 2 -type l -printf "%f %p %h/%l\n"`, # symlinks
+        );
+    foreach ( @sites ) {
+        chomp;
+        my ($sitetag, $site, $dotdir) = split / /; 
+        $site =~ s{^./}{}; # lose leading directory
+        $dotdir =~ s{([^/]+)$}{.$1/}; # put a dot before the tag name, add a /
+      # print "DEBUG: $sitetag, $site, $dotdir\n";
+        warn qq(warning: site "$sitetag" is duplicate\n)
+            if exists $siteindex{$sitetag} && VERBOSE;
+        $siteindex{$sitetag} = $siteindex{$site} = -d $dotdir ? $dotdir : undef;
+        }
+    } 
+
+sub save_query {
+    my $site = shift;
+    my $suffix = shift;
+    $suffix =~ s/^([^-])/-$1/ if defined $suffix;
+    $suffix = "" unless defined $suffix;
+    unless ( $ok2save ) {
+        print "not authorized to save setttings\n";
+        return;
+        }
+    die qq(site "$site" not found\n) unless -d $siteindex{$site};
+    my $file = $siteindex{$site} . STORED_QUERY_FILE . $suffix;
+    unless ( open STORE, ">", $file ) {
+        print qq(ERROR: failed to open file "$file"; $!\n);
+        }
+     else {
+        foreach ( get_text_query_params() ) {
+            print STORE "$_\n";
+            }
+        }
+    }
+
+sub load_query {
+    my $site = shift;
+    my $suffix = shift;
+    $suffix =~ s/^([^-])/-$1/ if defined $suffix;
+    $suffix = "" unless defined $suffix;
+    die qq(site "$site" not found\n) unless -d $siteindex{$site};
+    my $file = $siteindex{$site} . STORED_QUERY_FILE . $suffix;
+    unless ( -e $file ) {
+        print qq(ERROR: file "$file" not found\n);
+        return;
+        }
+    unless ( open STORE, "<", $file ) {
+        print qq(ERROR: file "$file" not opened; $!\n);
+        return;
+        }
+    while ( <STORE> ) {
+        chomp;
+        ## best would be to run through the above interpreter, but anyway...
+        next if m/^\s*$/; # skip blank lines
+        next if m/^\s*#/; # skip comments
+        my ($tag, $value) = m/^(\S+)\s*(.*)/;
+        next unless defined $tag && defined $value; # but should say something
+        $query{$tag} = $value if $tag =~ m/^host|port|radio|prompt/;
+        if ( $tag =~ m/repeaters?/ && defined $value ) {
+            $query{repeater} = [ split /[\s,]\s*/, $value ];
+            }
+        }
+    }
+
+sub help_screen {
+    print << "    END_HELP";
+    host HOST[:PORT] -- remote base radio host ip address
+    port PORT -- port number on base radio remote host
+    prompt STRING -- server will issue carriage returns until prompt is seen
+    rad[io] SITE|N -- site name or 7-digit radio number
+    rep[eater] SITE|N  -- append repeater number to list of repeaters
+    rep[eater][s] SITE|N, SITE|N[, ...] -- define repeater list
+    save SITE [SUFFIX] -- store settings under given site (optional SUFFIX)
+    load SITE [SUFFIX] -- load settings from given site (optional SUFFIX)
+    help -- display this message
+    quit -- close down session
+    call -- use settings to contact remote site
+    END_HELP
+    
+    }
+
+sub quit_session { # do any necessary cleanup, and exit
+    print "goodbye!\n";
+    exit 0;
     }
