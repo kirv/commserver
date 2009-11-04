@@ -309,6 +309,8 @@ $entry = $callbook->repeater_path_entry() if $rep_path;
 
 print DEBUG_STEPS qq(using repaater path $entry\n) if defined $entry;
 
+my $entry_type = $entry ? 'existing' : 'configure';
+
 unless ( $entry ) { # existing repeater path was not found, so configure...
     $entry = '8';
     print DEBUG_STEPS qq(configuring repaater path 8...\n);
@@ -396,7 +398,7 @@ print DEBUG_STEPS qq(ready to dial target radio with $dial_string\n);
 
 $query{host};
 
-print CALL_SUMMARY "$query{host}\t$sitename\t$dial_string\n";
+print CALL_SUMMARY "$query{host}\t$sitename\t$dial_string\t$entry_type\n";
 close CALL_SUMMARY;
 
 # $exp->send("ATXC8ATD$query{radio}"); # try to connect to the target radio
