@@ -21,6 +21,7 @@ use constant CALL_SUMMARY_FILE => "/var/local/log/commserver-call-summary";
 
 my $starttime = time;
 my $time2_ready2dial;
+my $time2_connect;
 
 my $ok2save;
 while ( my $opt = shift ) {
@@ -324,9 +325,9 @@ $entry = $callbook->repeater_path_entry($rep_path) if defined $rep_path;
 # 
 print DEBUG_STEPS qq(using repaater path $entry\n) if defined $entry;
 
-my $entry_type = $entry ? 'exists' : 'new';
+my $entry_type = defined $entry ? 'exists' : 'new';
 
-unless ( $entry ) { # existing repeater path was not found, so configure...
+unless ( defined $entry ) { # existing repeater path was not found, so configure...
     $entry = '8';
     print DEBUG_STEPS qq(configuring repaater path 8...\n);
     # clear entry #9:
@@ -460,21 +461,7 @@ else {
     die "bye!\n";
     }
 
-log_call_summary();
-
-sub log_call_summary {
-    my ($s, $m, $h, $y, $d) = (localtime $starttime)[0, 1, 2, 5, 7];
-    my $tmstamp = sprintf "%4d-%03d-%02d:%02d:%02d", $y+1900, $d+1, $h, $m, $s;
-    print "DEBUG $tmstamp\n";
-    my $elapsed = time - $starttime . 's';
-    my $tm_up2dial = $time2_ready2dial ? $time2_ready2dial - $starttime . 's' : '-';
-    open CALL_SUMMARY, ">>", CALL_SUMMARY_FILE or die $!;
-    print CALL_SUMMARY
-        join(',', $tmstamp, @call_summary, $tm_up2dial, $elapsed),
-        "\n";
-    close CALL_SUMMARY;
-    }
-
+$time2_connect = time;
 
 print DEBUG_STEPS qq(going interactive with client...\n);
 
@@ -483,12 +470,28 @@ $exp->interact(\*STDIN, 'BAIL!');
 
 print DEBUG_STEPS qq(client has terminated connection\n);
 
+log_call_summary();
+
 ## client is done! 
 ## todo: 
 ##    test for doneness of client
 ##    reset remote base radio
 ##    gather connection stats
 ##    log info somewhere
+
+sub log_call_summary {
+    my ($s, $m, $h, $y, $d) = (localtime $starttime)[0, 1, 2, 5, 7];
+    my $tmstamp = sprintf "%4d-%03d-%02d:%02d:%02d", $y+1900, $d+1, $h, $m, $s;
+    print "DEBUG $tmstamp\n";
+    my $tm_up2dial = $time2_ready2dial ? $time2_ready2dial - $starttime . 's' : '-';
+    my $tm_connect = $time2_connect ? $time2_connect - $starttime . 's' : '-';
+    my $tm_total = time - $starttime . 's';
+    open CALL_SUMMARY, ">>", CALL_SUMMARY_FILE or die $!;
+    print CALL_SUMMARY
+        join(',', $tmstamp, @call_summary, $tm_up2dial, $tm_connect, $tm_total),
+        "\n";
+    close CALL_SUMMARY;
+    }
 
 sub timedout {
     my $msg = shift;
