@@ -4,6 +4,7 @@ use strict;
 use warnings;
 
 use Expect;
+use FreeWave_Radio::Callbook;
 
 use constant LOCKSDIR => '/var/local/lock/';
 use constant PROMPT => 'query: ';
@@ -228,6 +229,8 @@ for ( my $i=0; $i<@{$query{repeater}}; $i++ ) {
     die qq(maximum 4 repeaters\n) if $i>3;
     }
 
+my $rep_path = "@{$query{repeater}}" if @{$query{repeater}};
+
 # warn "DEBUG: " . join(', ', $query{radio}, @{$query{repeater}}), "\n";
 
 ## ASSUME that the query is now fully specified
@@ -296,68 +299,74 @@ $exp->send("2");
 $exp->expect($timeout, "Enter all zeros") # (000-0000) as your last number in list
     or timedout('no radio callbook menu');
 
-# clear entry #9:
-$exp->send("9");
-$exp->expect($timeout, "9") # number is echoed
-    or timedout('no callbook menu command "9" echo, zeroing entry');
-$exp->expect($timeout, "Enter New Number")
-    or timedout('no "Enter New Number" callbook prompt after "9" command, zeroing entry');
-$exp->send("0000000");
-$exp->expect($timeout, "Enter all zeros")
-    or timedout('no "Enter all zeros" callbook prompt, zeroed entry "9"');
+my $callbook = FreeWave_Radio::Callbook->new($exp->before());
+my $entry = $callbook->repeater_path_entry($rep_path);
 
-print DEBUG_STEPS qq(entering radio number\n);
-
-$exp->send("8");
-$exp->expect($timeout, "8") # number is echoed
-    or timedout('no callbook menu command "8" echo');
-$exp->expect($timeout, "Enter New Number")
-    or timedout('no "Enter New Number" callbook prompt after "8" command');
-$exp->send($query{radio});
-
-$exp->expect($timeout, "Enter Repeater")
-    or timedout('no "Enter Repeater" callbook prompt, entry "8"');
-
-unless ( @{$query{repeater}} ) { # no repeaters
-    $exp->send("\e");
+unless ( $entry ) { # existing repeater path was not found, so configure...
+    $entry = '8';
+    # clear entry #9:
+    $exp->send("9");
+    $exp->expect($timeout, "9") # number is echoed
+        or timedout('no callbook menu command "9" echo, zeroing entry');
+    $exp->expect($timeout, "Enter New Number")
+        or timedout('no "Enter New Number" callbook prompt after "9" command, zeroing entry');
+    $exp->send("0000000");
     $exp->expect($timeout, "Enter all zeros")
-        or timedout('no "Enter all zeros" callbook prompt, entry "8", no repeaters');
-    # menu state: still in callbook
-    } 
-else { # repeaters are called out
-    my $n = 0; ## refer to repeaters ordinally, i.e., 1, 2, 3, 4
-    while ( defined $query{repeater}->[++$n-1] ) {
-        print DEBUG_STEPS qq(entering repeater number\n);
-        if ( $n == 1 ) { # enter 1st repeater
-            $exp->send($query{repeater}->[$n-1]);
-            $exp->expect($timeout, "Enter Repeater")
-                or timedout("no ${n}th \"Enter Repeater\" callbook prompt");
-            }
-        elsif ( $n == 2 || $n == 4 ) { # transaction concludes after entry
-            $exp->send($query{repeater}->[$n-1]);
-            $exp->expect($timeout, "Enter all zeros")
-                or timedout("no \"Enter all zeros\" callbook prompt ($n)");
-            }
-        elsif ( $n == 3 ) { # need to use entry 9
-            ## ASSERT: top level callbook menu
-            $exp->send("9");
-            $exp->expect($timeout, "9") # number is echoed
-                or timedout("no callbook menu command \"9\" echo, repeater $n");
-            $exp->expect($timeout, "Enter New Number")
-                or timedout("no \"Enter New Number\" callbook prompt after \"9\" command, repeater $n");
-            $exp->send("9999999"); ## special value for extended repeater path
-            $exp->expect($timeout, "Enter Repeater")
-                or timedout("no 1st \"Enter Repeater\" callbook prompt, entry \"9\", repeater $n");
-            $exp->send($query{repeater}->[$n-1]);
-            $exp->expect($timeout, "Enter Repeater")
-                or timedout("no 2nd \"Enter Repeater\" callbook prompt, entry \"9\", repeater $n");
-            }
-        }
-    ## ASSERT: may be at top level or waiting for 2nd or 4th repeater
-    if ( @{$query{repeater}} % 2 ) { # odd number of repeaters, 1 or 3
-        $exp->send("\e"); # terminate 
+        or timedout('no "Enter all zeros" callbook prompt, zeroed entry "9"');
+    
+    print DEBUG_STEPS qq(entering radio number\n);
+    
+    $exp->send("8");
+    $exp->expect($timeout, "8") # number is echoed
+        or timedout('no callbook menu command "8" echo');
+    $exp->expect($timeout, "Enter New Number")
+        or timedout('no "Enter New Number" callbook prompt after "8" command');
+    $exp->send($query{radio});
+    
+    $exp->expect($timeout, "Enter Repeater")
+        or timedout('no "Enter Repeater" callbook prompt, entry "8"');
+    
+    unless ( @{$query{repeater}} ) { # no repeaters
+        $exp->send("\e");
         $exp->expect($timeout, "Enter all zeros")
-            or timedout('no callbook menu 2 "Enter all zeros" prompt, ending entries');
+            or timedout('no "Enter all zeros" callbook prompt, entry "8", no repeaters');
+        # menu state: still in callbook
+        } 
+    else { # repeaters are called out
+        my $n = 0; ## refer to repeaters ordinally, i.e., 1, 2, 3, 4
+        while ( defined $query{repeater}->[++$n-1] ) {
+            print DEBUG_STEPS qq(entering repeater number\n);
+            if ( $n == 1 ) { # enter 1st repeater
+                $exp->send($query{repeater}->[$n-1]);
+                $exp->expect($timeout, "Enter Repeater")
+                    or timedout("no ${n}th \"Enter Repeater\" callbook prompt");
+                }
+            elsif ( $n == 2 || $n == 4 ) { # transaction concludes after entry
+                $exp->send($query{repeater}->[$n-1]);
+                $exp->expect($timeout, "Enter all zeros")
+                    or timedout("no \"Enter all zeros\" callbook prompt ($n)");
+                }
+            elsif ( $n == 3 ) { # need to use entry 9
+                ## ASSERT: top level callbook menu
+                $exp->send("9");
+                $exp->expect($timeout, "9") # number is echoed
+                    or timedout("no callbook menu command \"9\" echo, repeater $n");
+                $exp->expect($timeout, "Enter New Number")
+                    or timedout("no \"Enter New Number\" callbook prompt after \"9\" command, repeater $n");
+                $exp->send("9999999"); ## special value for extended repeater path
+                $exp->expect($timeout, "Enter Repeater")
+                    or timedout("no 1st \"Enter Repeater\" callbook prompt, entry \"9\", repeater $n");
+                $exp->send($query{repeater}->[$n-1]);
+                $exp->expect($timeout, "Enter Repeater")
+                    or timedout("no 2nd \"Enter Repeater\" callbook prompt, entry \"9\", repeater $n");
+                }
+            }
+        ## ASSERT: may be at top level or waiting for 2nd or 4th repeater
+        if ( @{$query{repeater}} % 2 ) { # odd number of repeaters, 1 or 3
+            $exp->send("\e"); # terminate 
+            $exp->expect($timeout, "Enter all zeros")
+                or timedout('no callbook menu 2 "Enter all zeros" prompt, ending entries');
+            }
         }
     }
 
@@ -375,8 +384,10 @@ sleep 1;
 
 print DEBUG_STEPS qq(ready to dial target radio\n);
 
-# $exp->send("ATDT8"); # try to connect to the target radio
-$exp->send("ATXC8ATD$query{radio}"); # try to connect to the target radio
+my $dial_string = "ATXC${entry}ATD$query{radio}";
+
+# $exp->send("ATXC8ATD$query{radio}"); # try to connect to the target radio
+$exp->send($dial_string); # try to connect to the target radio
 $exp->expect($timeout, "OK")  # command was acted upon
     or timedout('no "OK" response from ATDT command');
 print DEBUG_STEPS qq(saw "OK"\n);
