@@ -18,7 +18,9 @@ use constant REMOTE_PROMPT_RETRIES => 15;
 
 use constant DEBUG_STEPS_FILE => "/tmp/commserver-debug-steps";
 use constant CALL_SUMMARY_FILE => "/var/local/log/commserver-call-summary";
+
 my $starttime = time;
+my $time2_ready2dial;
 
 my $ok2save;
 while ( my $opt = shift ) {
@@ -402,7 +404,7 @@ my $dial_string = "ATXC${entry}ATD$query{radio}";
 
 print DEBUG_STEPS qq(ready to dial target radio with $dial_string\n);
 
-my $tm2_ready2dial = time - $starttime;
+$time2_ready2dial = time;
 
 $rep_path = '' unless $rep_path; # for output...
 push @call_summary, $dial_string, $entry_type, $rep_path;
@@ -454,12 +456,14 @@ else {
 log_call_summary();
 
 sub log_call_summary {
-    my ($s, $m, $h) = (localtime $starttime)[0, 1, 2];
-    my $hms = sprintf "%02d:%02d:%02d", $h, $m, $s;
-    my $elapsed = time - $starttime;
+    my ($s, $m, $h, $y, $d) = (localtime $starttime)[0, 1, 2, 5, 7];
+    my $tmstamp = sprintf "%4d-%03d-%02d:%02d:%02d", $y+1900, $d+1, $h, $m, $s;
+    print "DEBUG $tmstamp\n";
+    my $elapsed = time - $starttime . 's';
+    my $tm_up2dial = $time2_ready2dial ? $time2_ready2dial - $starttime . 's' : '-';
     open CALL_SUMMARY, ">>", CALL_SUMMARY_FILE or die $!;
     print CALL_SUMMARY
-        join(',', $hms, @call_summary, "${tm2_ready2dial}s", "${elapsed}s"),
+        join(',', $tmstamp, @call_summary, $tm_up2dial, $elapsed),
         "\n";
     close CALL_SUMMARY;
     }
