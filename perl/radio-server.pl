@@ -305,7 +305,7 @@ $exp->expect($timeout, "Enter all zeros") # (000-0000) as your last number in li
 
 my $callbook = FreeWave_Radio::Callbook->new($exp->before());
 my $entry;
-$entry = $callbook->repeater_path_entry() if $rep_path;
+$entry = $callbook->repeater_path_entry($rep_path) if $rep_path;
 
 print DEBUG_STEPS qq(using repaater path $entry\n) if defined $entry;
 
