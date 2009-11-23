@@ -1,20 +1,31 @@
 #!/bin/sh
 
-hops=( ${[@] ) 
+hops=( $@ ) 
 
-test -e @ip2radio && { # done: reached base radio
-    echo ${hops[@]} $(cat @name)
+test -e @ip2radio && {
+    # done: reached base radio
+    printf "DONE "
+    IFS=: 
+    echo HOPS: ${hops[@]}
     exit 0
     }
 
 test ${#hops[@]} -lt 5 || {
-    echo too many hops: $hops >&2
+    echo too many hops: ${hops[@]} >&2
     exit 2
     }
 
-name=$(cat @name)
+name=$TOB_object
+
+echo in $name ${hops[@]}
 
 for up in _/*; do
+    echo $up
+done
+
+for up in _/*; do
+
+    echo TESTING $up
 
     test -L $up || {
         echo bad uplink: $up >&2
@@ -27,14 +38,16 @@ for up in _/*; do
         }
 
     # skip if 'up' is already in hops list:
+    # (a hash test might be preferable)
     for hop in ${hops[@]}; do
         test $hop == $name &&
             continue 2
     done
 
-
-
-    link=$up/
+    path=$(tob $up.up ${hops[@]} $up)
+    test $? -eq 1 && exit 1
+    echo PATH: $path
+    test $? -eq 2 && continue
 
 done
     
