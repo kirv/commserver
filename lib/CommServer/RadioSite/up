@@ -1,0 +1,40 @@
+#!/bin/sh
+
+hops=( ${[@] ) 
+
+test -e @ip2radio && { # done: reached base radio
+    echo ${hops[@]} $(cat @name)
+    exit 0
+    }
+
+test ${#hops[@]} -lt 5 || {
+    echo too many hops: $hops >&2
+    exit 2
+    }
+
+name=$(cat @name)
+
+for up in _/*; do
+
+    test -L $up || {
+        echo bad uplink: $up >&2
+        exit 1
+        }
+
+    test -d $up/ || {
+        echo link is not a directory: $up >&2
+        exit 1
+        }
+
+    # skip if 'up' is already in hops list:
+    for hop in ${hops[@]}; do
+        test $hop == $name &&
+            continue 2
+    done
+
+
+
+    link=$up/
+
+done
+    
