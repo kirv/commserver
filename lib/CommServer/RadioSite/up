@@ -16,13 +16,9 @@ test ${#hops[@]} -lt 5 ||
 
 for up in _/*; do
 
-    test -L $up ||
+    test -L $up -o -d $up ||
         exit 1
 
-    test -d $up/ ||
-        exit 1
-
-    # skip if 'up' already visited:
     for hop in ${hops[@]}; do
         test $hop == $up &&
             continue 2
