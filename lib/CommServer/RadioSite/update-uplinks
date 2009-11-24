@@ -4,7 +4,15 @@ test -n "$1" ||
     exec $0 $(readlink -f $PWD) > @uplinks
 
 test -e @ip2radio && {
-    echo $*
+    # drop the first node, output the rest in reverse order:
+    shift 
+    result=$1
+    shift
+    while test -n "$1"; do
+        result="$1 $result"
+        shift
+    done
+    echo $result
     exit 0
     }
 
