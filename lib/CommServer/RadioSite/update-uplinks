@@ -1,15 +1,14 @@
 #!/bin/sh
 
-test -n "$1" || 
+test -n "$1" ||
     exec $0 $(readlink -f $PWD) > @uplinks
 
 test -e @ip2radio && {
-    IFS=: 
-    echo "$*"
+    echo $*
     exit 0
     }
 
-test $# -lt 5 ||
+test $# -le 5 ||
     exit 0
 
 for up in _/*; do
@@ -24,7 +23,8 @@ for up in _/*; do
             continue 2
     done
 
-    tob $up.up $* $up ||
+    # invoke this method by name using thinobject dispatcher:
+    tob $up.${0##*/} $* $up ||
         exit 1
 
 done
