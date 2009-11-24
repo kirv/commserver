@@ -3,15 +3,13 @@
 test -n "$1" || 
     exec $0 $(readlink -f $PWD) > @uplinks
 
-hops=( $@ ) 
-
 test -e @ip2radio && {
     IFS=: 
-    echo "${hops[*]}"
+    echo "$*"
     exit 0
     }
 
-test ${#hops[@]} -lt 5 ||
+test $# -lt 5 ||
     exit 0
 
 for up in _/*; do
@@ -21,12 +19,12 @@ for up in _/*; do
 
     up=$(readlink -f $up)
 
-    for hop in ${hops[@]}; do
+    for hop in $*; do
         test $hop == $up &&
             continue 2
     done
 
-    tob $up.up ${hops[@]} $up ||
+    tob $up.up $* $up ||
         exit 1
 
 done
