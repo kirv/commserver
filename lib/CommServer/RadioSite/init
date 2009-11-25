@@ -1,7 +1,8 @@
 #!/bin/sh
 
-echo $PWD
-
 touch @radio
 
 tob-new log TimeSeries
+
+echo initialized object as $(readlink ^) |
+    tob log.store
