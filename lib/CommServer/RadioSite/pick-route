@@ -1,0 +1,17 @@
+#!/bin/sh
+
+test -e %routes ||
+    tob ..rank-routes
+
+test @routes -nt %routes &&
+    tob ..rank-routes
+
+# for r in $(sort -n %routes); do
+#     echo SORTED: "$r"
+# done
+
+while read r; do
+    echo SORTED: $r
+done < %routes
+
+    

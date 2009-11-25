@@ -1,0 +1,10 @@
+#!/bin/sh
+
+awk < @routes '{
+    printf("%3d\t%s\n", NF, $0)
+    }' |
+    sort -n |
+    cut -f 2- > .@routes &&
+    mv -f .@routes @routes
+
+

@@ -6,6 +6,7 @@ test -n "$1" || {
     tm=$(($(date +%s) - $tm))
     echo update routes n=$(wc -l < @routes) tm=$tm |
         tob log.store
+    tob ..rank-routes
     exit 
     }
 
