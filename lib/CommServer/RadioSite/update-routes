@@ -4,7 +4,7 @@ test -n "$1" || {
     tm=$(date +%s)
     $0 $(readlink -f $PWD) > @routes
     tm=$(($(date +%s) - $tm))
-    echo update routes n=$(cat @routes | wc -l) tm=$tm |
+    echo update routes n=$(wc -l < @routes) tm=$tm |
         tob log.store
     exit 
     }
