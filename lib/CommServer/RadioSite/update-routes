@@ -1,7 +1,13 @@
 #!/bin/sh
 
-test -n "$1" ||
-    exec $0 $(readlink -f $PWD) > @routes
+test -n "$1" || {
+    tm=$(date +%s)
+    $0 $(readlink -f $PWD) > @routes
+    tm=$(($(date +%s) - $tm))
+    echo update routes n=$(cat @routes | wc -l) tm=$tm |
+        tob log.store
+    exit 
+    }
 
 test -e @ip2radio && {
     # drop the first node, output the rest in reverse order:
