@@ -1,0 +1,54 @@
+#!/bin/bash
+
+set -C
+
+lock_route () {
+    for node in $*; do
+        >$node/LOCK || {
+            test -n "$locks" && rm $locks
+            unset locks
+            return 1
+            }
+        locks="$locks $node/LOCK"
+    done
+    return 0
+    }
+
+log-route () {
+    printf locked
+    for node in $route; do
+        printf " ${node##*/}"
+    done
+    printf "\n"
+    }
+
+main () {
+    >LOCK || exit 1
+    unset locks
+    while read route; do
+        lock_route $route && break
+    done < @routes
+    test -n "$locks" || {
+        rm LOCK
+        exit 2
+        }
+    echo $route >| LOCK
+    log-route | tob log.store
+    }
+
+main 2>/dev/null
+
+exit
+
+NAME
+    lock-route
+
+EXIT VALUES
+    0 -- success
+    1 -- target object already locked
+    2 -- no route found
+
+DESCRIPTION
+    Assumes @routes list exists. Finds a route from the object to a
+    base station, setting file LOCK in each node.  Write the found route
+    into file LOCK in the object.

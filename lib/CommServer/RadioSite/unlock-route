@@ -1,0 +1,31 @@
+#!/bin/bash
+
+unlock-route () {
+    for node in $(cat LOCK); do
+        rm $node/LOCK || exit 2
+        nodes="$nodes ${node##*/}"
+    done
+    }
+
+main () {
+    test -e LOCK || exit 0
+    test -s LOCK || exit 1
+    unlock-route && rm LOCK
+    echo unlocked $nodes | tob log.store
+    }
+
+main
+
+exit
+
+NAME
+    unlock-route
+
+EXIT VALUES
+    0 -- success, or was not locked
+    1 -- lock is owned by another node, no change
+    2 -- failed to remove an owned lock
+
+DESCRIPTION
+    The file LOCK contains the route to reach the object node,
+    while the LOCK files in the route nodes are empty.
