@@ -1,17 +1,27 @@
 #!/bin/bash
 
 unlock-route () {
-    for node in $(cat LOCK); do
-        rm $node/LOCK || exit 2
+    for node in $(cat @LOCK); do
+        rm $node/@LOCK || continue
+        n=$(($n + 1))
         nodes="$nodes ${node##*/}"
+        test -n "$VERBOSE" && printf " ${node##*/}"
     done
+    return 0
     }
 
 main () {
-    test -e LOCK || exit 0
-    test -s LOCK || exit 1
-    unlock-route && rm LOCK
-    echo unlocked $nodes | tob log.store
+    test -e @LOCK || exit 3
+    test -s @LOCK || exit 2
+    test -n "$VERBOSE" && printf "unlocked"
+    n=0
+    unlock-route && rm @LOCK && n=$(($n + 1)) || {
+        echo failed to remove any locks in $nodes | tob log.store
+        return 1
+        }
+    test -n "$VERBOSE" && printf " $TOB_object\n"
+  # echo unlocked $nodes | tob log.store
+    echo removed $n locks: $nodes ${TOB_object##*[./]} | tob log.store
     }
 
 main
@@ -22,10 +32,11 @@ NAME
     unlock-route
 
 EXIT VALUES
-    0 -- success, or was not locked
-    1 -- lock is owned by another node, no change
-    2 -- failed to remove an owned lock
+    0 -- success, locks were removed
+    1 -- failed to remove one or more locks
+    2 -- lock is owned by another node, no change
+    3 -- object was not locked
 
 DESCRIPTION
-    The file LOCK contains the route to reach the object node,
-    while the LOCK files in the route nodes are empty.
+    The file @LOCK contains the route to reach the object node,
+    while the @LOCK files in the route nodes are empty.

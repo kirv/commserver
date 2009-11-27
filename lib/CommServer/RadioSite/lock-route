@@ -1,38 +1,40 @@
 #!/bin/bash
 
-set -C
+set -o noclobber
 
 lock_route () {
     for node in $*; do
-        >$node/LOCK || {
+        >$node/@LOCK || {
             test -n "$locks" && rm $locks
             unset locks
             return 1
             }
-        locks="$locks $node/LOCK"
+        locks="$locks $node/@LOCK"
     done
     return 0
     }
 
 log-route () {
-    printf locked
+    printf "locked route $n:"
     for node in $route; do
         printf " ${node##*/}"
     done
-    printf "\n"
+    printf " ${TOB_object##*[./]}\n"
     }
 
 main () {
-    >LOCK || exit 1
+    >@LOCK || exit 1
     unset locks
+    n=1
     while read route; do
         lock_route $route && break
+        n=$(($n + 1))
     done < @routes
     test -n "$locks" || {
-        rm LOCK
+        rm @LOCK
         exit 2
         }
-    echo $route >| LOCK
+    echo $route >| @LOCK
     log-route | tob log.store
     }
 
@@ -50,5 +52,5 @@ EXIT VALUES
 
 DESCRIPTION
     Assumes @routes list exists. Finds a route from the object to a
-    base station, setting file LOCK in each node.  Write the found route
-    into file LOCK in the object.
+    base station, setting file @LOCK in each node.  Write the found route
+    into file @LOCK in the object.
