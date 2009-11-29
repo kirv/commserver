@@ -10,7 +10,7 @@ test -n "$1" || {
     exit 
     }
 
-test -e @ip2radio && {
+test -e %ip2radio && {
     # drop the first node, output the rest in reverse order:
     shift 
     result=$1

@@ -6,14 +6,8 @@ use warnings;
 use Expect;
 use FreeWave_Radio::Callbook;
 
-use constant LOCKSDIR => '/var/local/lock/';
-use constant PROMPT => 'query: ';
-use constant ECHO => 0;
-use constant ROOT => '/var/local/commserver/';
 use constant TMPDIR => '/tmp/';
-use constant VERBOSE => 0;
 use constant DEBUG => 1;
-use constant STORED_QUERY_FILE => '.query';
 use constant REMOTE_PROMPT_RETRIES => 20;
 
 use constant DEBUG_STEPS_FILE => "/tmp/commserver-debug-steps";
@@ -22,11 +16,6 @@ use constant CALL_SUMMARY_FILE => "/var/local/log/commserver-call-summary";
 my $starttime = time;
 my $time2_ready2dial;
 my $time2_connect;
-
-my $ok2save;
-while ( my $opt = shift ) {
-    $ok2save = 1 if $opt eq '-s';
-    }
 
 open DEBUG_STEPS, ">>", DEBUG_STEPS_FILE or die $!;
 select DEBUG_STEPS;
@@ -39,28 +28,88 @@ my $sitename; # store for call summary output...
 my @call_summary;
 
 my %siteindex;
-init_siteindex(); # NOTE: this also chdirs to the ROOT directory
 
-## This script should be run by inetd or netcat, so that STDIN is coming
-## from, and STDOUT is going back to, the (remote) client.
-##
-## The server waits to see a carriage return, then issues a prompt, "query: ".
-##
-## The details for the connection request, i.e., the query, is read in
-## one line from STDIN.
-##
-## The query is parsed, then the remote target radio is connected, and
-## if possible (depending on protocol) the connection to target radio is
-## confirmed.
-##
-## Connection is announced to the client as a "CONNECT" string.
-##
-## The client then drives the session and either quits or gets timed out
-## (gets forcibly dropped)
-##
-## This program then (tries to) get radio stats from the remote Freewave
-## base radio.
+## This method expects to find:
+##      @LOCK containing base and repeater nodes
+##      @radio containing the object's radio number
+##      @prompt, either in the site or inherited
+## 
+## The method does, in turn:
+##      connects to the base radio
+##      checks its callbook
+##      configures the callbook if necessary
+##      calls the target site
+##      attempts to elicit the prompt from the remote node
+##      return CONNECT if prompt was seen
+##      pass all i/o to/from client-remote
+##      break connection if:
+##          "BAIL!" is received from the client
+##          session timeout limit is exceeded
+##          client drops the connection
+## 
+## This program should then try to get radio stats from the base radio
 
+my @attr_path = ( split ':', $ENV{TOB_attribute_search_paths} );
+my @method_path = ( split ':', $ENV{TOB_method_search_paths} );
+
+my $prompt;
+for my $p ( @attr_path ) {
+    next unless -e "$p/\@prompt";
+    open PROMPT, '<', "$p/\@prompt"
+        or die "failed to open $p/\@prompt for reading\n";
+    chomp ($prompt = <PROMPT>);
+    close PROMPT or die $!;
+    }
+
+die "site object is not locked\n" unless -e '@LOCK';
+die "site object is locked by another site\n" unless -s '@LOCK';
+
+open ROUTE, '<', '@LOCK'
+    or die "failed to open \@LOCK\n";
+chomp( my $route = <ROUTE> );
+close ROUTE or die $!;
+
+my ($base, @repsite) = split ' ', $route;
+
+open RADIO, '<', '@radio'
+    or die "failed to open \@radio\n";
+chomp( my ($radio) = <RADIO> );
+close RADIO or die $!;
+
+open BASE, '<', "$base/\%ip2radio" 
+    or die "failed to open $base\%ip2radio in base\n";
+my ($host, $port);
+while ( <BASE> ) {
+    chomp;
+    $host = $1 if m/host=(\S+)/;
+    $port = $1 if m/port=(\S+)/;
+    }
+close BASE or die $!;
+
+my @repeater;
+for my $site ( @repsite ) {
+    die "no lock in repeater $site\n"
+        unless -e "$site/\@LOCK";
+    die "lock in repeater $site is not a repeater lock\n"
+        unless -s "$site/\@LOCK" == 0;
+    open REP, '<', "$site/\@radio"
+        or die "failed to open \@radio in repeater $site\n";
+    chomp( my $repeater = <REP> );
+    push @repeater, $repeater;
+    close REP or die $!;
+    }
+
+if ( 1 ) {
+    print 'attr_path: ', join(',', @attr_path), "\n";
+    print 'method_path: ', join(',', @method_path), "\n";
+    print "prompt: $prompt\n";
+    print "route:\n\t", join("\n\t", $base, @repsite), "\n";
+    print "host: $host\n";
+    print "port: $port\n";
+    print "radios:\n\t", join("\n\t", $radio, @repeater), "\n";
+    
+    exit 0;
+    }
 
 my %query = (
     host => undef,     # ip host name or number
@@ -73,197 +122,8 @@ my %query = (
 
 $| = 1; ## turn buffering off on STDOUT to client
     
-print DEBUG_STEPS "sending query: prompt\n";
-print PROMPT;
-
-# chomp($query{raw} = <>);   # read the query from the client in one line
-# warn qq(query: $query{raw}\n);
-
-# print "$query{raw}\n";
-
-while ( <> ) { # read input from the client
-    chomp;
-    s/\r//;
-    print DEBUG_STEPS qq(received "$_" command\n);
-
-    if ( m/^\s*$/ ) { } # skip blank lines 
-
-    elsif ( m/^\s*#/ ) { } # skip comment lines
-
-    elsif ( my ($param) = m/^(host|port|rad(io)?|rep(eater)?s?|prompt) ?$/ ) {
-        ## display parameter value if called with no argument
-        $param =~ s/^reps?$/repeater/;
-        $param =~ s/^repeaters$/repeater/;
-        $param =~ s/^rad$/radio/;
-        if ( defined $query{$param} ) {
-            if ( ref $query{$param} eq 'ARRAY' ) {
-                print join ', ', @{$query{$param}}; 
-                }
-            else {
-                print $query{$param}; 
-                }
-            }
-        print "\n"; 
-        }
-
-    elsif ( my ($host, undef, $port) = m/^host ([^:]+)(:(.+))?$/ ) {
-        $query{host} = $host;
-        if ( defined $port ) {
-            $query{port} = $port if defined $port && $port =~ m/^\d+$/; 
-            print "ERROR: port value must be numeric\n" unless $port=~m/^\d+$/;
-            }
-        }
-
-    elsif ( ($port) = m/^port (.+)$/ ) { # radio base host ip port number
-        $query{port} = $port if defined $port && $port =~ m/^\d+$/; 
-        print "ERROR: port value must be numeric\n" unless $port =~ m/^\d+$/;
-        }
-
-    elsif ( m/^up(links?)?\s(\S+)(\s(.+))?$/ ) { # list or view uplinks
-        my ($from, $to) = ($2, $4);
-        unless ( $to ) { # list uplinks for "from" site
-            foreach ( list_uplinks($from) ) {
-                print "  $from  $_\n" if defined $_;
-                }
-            }
-        else { # "to" site is also specified
-            my @param;
-            my $up_param = get_uplink($from, $to);
-            while ( my ($key, $val) = each %$up_param ) {
-                push @param, "$val $key";
-                }
-            print "$from  $to {", join(', ', @param), "}\n";
-            }
-        }
-
-    elsif ( m/^rad(io)? (.+)$/ ) { # radio number or site
-        my $num = get_check_radio_number($2);
-        $query{radio} = $num if defined $num;
-        }
-
-    elsif ( m/^rep(eater)?s? (.+)$/ ) { # repeater(s)
-        my @rep = split /[\s,]\s*/, $2; # delimit by comma and/or spaces
-        @rep = map get_check_radio_number($_), @rep;
-        if ( @rep == 1 ) { # only one entry, so push onto repeater list:
-            push @{$query{repeater}}, $rep[0] if defined $rep[0];
-            }
-        else { # multiple entries, so set entire repeater list (if ok)
-            my $allok = 1;
-            foreach ( @rep ) {
-                undef $allok unless defined $_;
-                }
-            $query{repeater} = [ @rep ] if $allok;
-            }
-        }
-
-    elsif ( m/^retries\s+(\d+)$/ ) { # how many CRs to send...
-        $query{retries} = $1;
-        }
-
-    elsif ( my ($prompt) = m/^prompt (.+)$/ ) { # initial prompt to query for 
-        $query{prompt} = $prompt;
-        }
-
-    elsif ( m/^h(elp)?$/i ) { # action command
-        help_screen();
-        }
-
-    elsif ( m/^q(uit)?$/i ) { # action command
-        quit_session();
-        }
-
-    elsif ( m/^show$/i ) { # action command
-        print "query parameters:\n";
-        foreach ( get_text_query_params() ) {
-            print "    $_\n";
-            }
-        }
-
-    elsif ( m/^list( (.*))?$/i ) { # list sites command
-        my $area = $2;
-        my %inverted_index; 
-        foreach my $tag ( sort keys %siteindex ) {
-            if ( exists $inverted_index{$siteindex{$tag}} ) {
-                $inverted_index{$siteindex{$tag}} .= ", $tag";
-                }
-            else {
-                $inverted_index{$siteindex{$tag}} .= $tag;
-                }
-            }
-        print "defined sites (and aliases):\n";
-        foreach my $key ( sort keys %inverted_index ) {
-            next if defined $area && $key !~ m{$area};
-            print "    ", $inverted_index{$key}, "\n";
-            }
-        }
-
-    elsif ( m/^call( .+)?$/ ) { # load and call with query parameters
-        my ($site, undef, $suffix) = $1 =~ m/\s(\S+)(\s+(.*))?/;
-        load_query($site, $suffix); # suffix is optional
-        $query{action} = 'call';
-        $sitename = $site;
-        }
-
-    elsif ( m/^load (.+)$/ ) { # load query parameters
-        my ($site, undef, $suffix) = $1 =~ m/(\S+)(\s+(.*))?/;
-        load_query($site, $suffix); # suffix is optional
-        }
-
-    elsif ( m/^save (.+)$/ ) { # save query parameters
-        my ($site, undef, $suffix) = $1 =~ m/(\S+)(\s+(.*))?/;
-        save_query($site, $suffix); # suffix is optional
-        }
-
-    else {
-        my $sitetag = $_;
-        if ( exists $siteindex{$sitetag} ) {
-            load_name($sitetag, \%query);
-            }
-        else {
-            print "unknown query: $sitetag\n";
-            }
-        }
-    last if $query{action} eq 'call';
-    print PROMPT;
-    }
-
-print DEBUG_STEPS "leaving command interpreter\n";
-
-die qq(no ip host specified\n) unless defined $query{host};
-die qq(no ip port specified\n) unless defined $query{port};
-
-$query{radio} =~ s/^(\d{3})-(\d{4})/$1$2/; # get rid of hyphen, if any
-die qq(radio to call undefined\n) unless defined $query{radio};
-die qq(radio "$query{radio}" must be a radio number\n) unless $query{radio} =~ m/^\d{7}/;
-
-for ( my $i=0; $i<@{$query{repeater}}; $i++ ) {
-    $query{repeater}->[$i] =~ s/^(\d{3})-(\d{4})/$1$2/; # get rid of hyphen
-    die qq(repeater must be a radio number\n) unless 
-        $query{repeater}->[$i] =~ m/^\d{7}/;
-    die qq(maximum 4 repeaters\n) if $i>3;
-    }
-
-my $rep_path = "@{$query{repeater}}" if @{$query{repeater}};
-
-# warn "DEBUG: " . join(', ', $query{radio}, @{$query{repeater}}), "\n";
 
 ## ASSUME that the query is now fully specified
-
-# print "TESTING: confirm settings:\n";
-# foreach my $tag ( sort keys %query ) {
-#     print "  $tag=";
-#     if ( ! defined $tag ) {
-#         print "UNDEFINED";
-#         }
-#     elsif ( ref $query{$tag} ) {
-#         print join ", ", @{$query{$tag}}
-#         }
-#     else {
-#         print $query{$tag};
-#         }
-#     print "\n";
-#     }
-# # die "testing... shutting down!\n";
 
 print DEBUG_STEPS qq(query parameters:\n),
     qq(    radio $query{radio}\n),
@@ -317,6 +177,7 @@ $exp->expect($timeout, "Enter all zeros") # (000-0000) as your last number in li
 
 my $callbook = FreeWave_Radio::Callbook->new($exp->before());
 my $entry;
+my $rep_path;
 $entry = $callbook->repeater_path_entry($rep_path) if defined $rep_path;
 
 # if ( $query{host} eq 'sagriver' ) {
@@ -510,185 +371,5 @@ sub timedout {
     print "ABORTING CONNECTION\r\n";
     $exp->send("\e\e"); # send escapes in case in radio setup mode
     die qq(expect() timed out: $msg\n);
-    }
-
-sub get_text_query_params {
-    my @query;
-    foreach my $key ( sort keys %query ) {
-        my $value = $query{$key};
-        unless ( ref $value ) {
-            push @query, "$key $query{$key}";
-            }
-        elsif ( ref $value eq 'ARRAY' ) {
-            push @query, $key;
-            $query[-1] .= 's' if @$value > 1;
-            $query[-1] .= " " . join(", ", @$value);
-            }
-        else { # hash or something??
-            die qq(unsupported value "$value" for "$key"\n);
-            }
-        }
-    return @query;
-    }
-
-sub get_check_radio_number { # get site radio and/or validate number
-    my $num = shift;
-    unless ( $num =~ m/^\d/ ) { ## not numeric, so assume it's a site
-        unless ( exists $siteindex{$num} ) {
-            print qq(ERROR: no site "$num" found\n);
-            return undef;
-            }
-        unless ( open SITE_RADIO, "<", $siteindex{$num} . 'RADIO' ) {
-            print qq(ERROR: no radio number found for site "$num"\n);
-            return undef;
-            }
-        chomp ($num = <SITE_RADIO>);
-        }
-    $num =~ s/^(\d{3})(\d{4})$/$1-$2/; # hyphenate number for readability
-    unless ( $num =~ m/^\d{3}-\d{4}$/ ) {
-        print "ERROR: radio number ($num) must be 7 digits\n";
-        return undef;
-        }
-    return $num;
-    }
-
-sub init_siteindex { # initialize global hash into sites
-    chdir ROOT or die qq(failed to cd to root dir; $!\n);
-    my @sites = ( # the find(1) commands yield: "sitetag fullname fullname":
-        `find -maxdepth 2 -type f -printf "%f %p %p\n"`,    # normal files
-        `find -maxdepth 2 -type l -printf "%f %p %h/%l\n"`, # symlinks
-        );
-    foreach ( @sites ) {
-        chomp;
-        my ($sitetag, $site, $dotdir) = split / /; 
-        $site =~ s{^./}{}; # lose leading directory
-        $dotdir =~ s{([^/]+)$}{.$1/}; # put a dot before the tag name, add a /
-      # print "DEBUG: $sitetag, $site, $dotdir\n";
-        warn qq(warning: site "$sitetag" is duplicate\n)
-            if exists $siteindex{$sitetag} && VERBOSE;
-        $siteindex{$sitetag} = $siteindex{$site} = -d $dotdir ? $dotdir : undef;
-        }
-    } 
-
-sub save_query {
-    my $site = shift;
-    my $suffix = shift;
-    $suffix =~ s/^([^-])/-$1/ if defined $suffix;
-    $suffix = "" unless defined $suffix;
-    unless ( $ok2save ) {
-        print "not authorized to save setttings\n";
-        return;
-        }
-    die qq(site "$site" not found\n) unless -d $siteindex{$site};
-    my $file = $siteindex{$site} . STORED_QUERY_FILE . $suffix;
-    unless ( open STORE, ">", $file ) {
-        print qq(ERROR: failed to open file "$file"; $!\n);
-        }
-     else {
-        foreach ( get_text_query_params() ) {
-            print STORE "$_\n";
-            }
-        }
-    }
-
-sub load_query {
-    my $site = shift;
-    my $suffix = shift;
-    $suffix =~ s/^([^-])/-$1/ if defined $suffix;
-    $suffix = "" unless defined $suffix;
-    die qq(site "$site" not found\n) unless -d $siteindex{$site};
-    my $file = $siteindex{$site} . STORED_QUERY_FILE . $suffix;
-    unless ( -e $file ) {
-        print qq(ERROR: file "$file" not found\n);
-        return;
-        }
-    unless ( open SETTINGS, "<", $file ) {
-        print qq(ERROR: file "$file" not opened; $!\n);
-        return;
-        }
-    while ( <SETTINGS> ) {
-        chomp;
-        ## best would be to run through the above interpreter, but anyway...
-        next if m/^\s*$/; # skip blank lines
-        next if m/^\s*#/; # skip comments
-        my ($tag, $value) = m/^(\S+)\s*(.*)/;
-        next unless defined $tag && defined $value; # ...should say something?
-        if ( $tag =~ m/^host|port|radio|prompt|retries$/ ) {
-            $query{$tag} = $value;
-            }
-        elsif ( $tag =~ m/repeaters?/ ) {
-            $query{repeater} = [ split /[\s,]\s*/, $value ];
-            }
-        }
-    }
-
-sub help_screen {
-    print << "    END_HELP";
-    host HOST[:PORT] -- remote base radio host ip address
-    port PORT -- port number on base radio remote host
-    prompt STRING -- server will issue carriage returns until prompt is seen
-    rad[io] SITE|N -- site name or 7-digit radio number
-    rep[eater] SITE|N  -- append repeater number to list of repeaters
-    rep[eater][s] SITE|N, SITE|N[, ...] -- define repeater list
-    save SITE [SUFFIX] -- store settings under given site (optional SUFFIX)
-    load SITE [SUFFIX] -- load settings from given site (optional SUFFIX)
-    up[link[s]] SITE [SITE] -- list all uplinks or show details of one
-    list -- list all sites and aliases
-    help -- display this message
-    quit -- close down session
-    call -- use settings to contact remote site
-    END_HELP
-    
-    }
-
-sub quit_session { # do any necessary cleanup, and exit
-    print "goodbye!\n";
-    exit 0;
-    }
-
-sub list_uplinks {
-    my $site = shift;
-    unless ( $siteindex{$site} ) {
-        print "? -- site $site not found\n";
-        return undef;
-        }
-    unless ( -d "$siteindex{$site}/UPLINK/" ) {
-        print "no uplinks defined for site $site\n";
-        return undef;
-        }
-    opendir UPLINKS, $siteindex{$site} . "/UPLINK/" or die $!;
-    my @uplinks;
-    while ( my $to_site = readdir UPLINKS ) {
-        next if $to_site =~ m/^\./; # skip . and .. directories or any dot-file
-        $to_site =~ s{::}{/}g;
-        push @uplinks, $to_site;
-        }
-    return @uplinks;
-    }
-
-sub get_uplink {
-    my $site = shift;
-    my $to_site = shift;
-    unless ( $siteindex{$site} ) {
-        print "? -- site $site not found\n";
-        return undef;
-        }
-    unless ( -d "$siteindex{$site}/UPLINK/" ) {
-        print "no uplinks defined for site $site\n";
-        return undef;
-        }
-    $to_site =~ s{/}{::}g;
-    unless ( -e "$siteindex{$site}/UPLINK/$to_site" ) {
-        print "no uplinks defined for site $site\n";
-        return undef;
-        }
-    open UPLINK, '<', "$siteindex{$site}/UPLINK/$to_site" or die $!;
-    my %param;
-    while ( <UPLINK> ) {
-        chomp;
-        next unless my ($val, $key) = m/^(\S+)\s+(\S+)/;
-        $param{$key} = $val;
-        }
-    return \%param;
     }
 
