@@ -1,0 +1,33 @@
+#!/bin/bash
+
+main () {
+    tob ..lock-route || exit 2
+    trap 'tob ../unlock-route' EXIT TERM
+    base=$(<@base)
+    route=$(<@route)
+    radio=$(<@radio)
+    t0=$(date +%s)
+    tob $base.call $radio $route
+    tm=$(date +%s)
+    tob ../unlock-route
+    trap - EXIT TERM
+    printf "%ds to call via %s to %s\n" $(($tm - $t0)) $base $route
+    }
+
+main
+
+exit
+
+NAME
+    call -- initiate a connection to this radio site
+
+EXIT VALUES
+    0 -- success
+    1 -- some failure occurred
+    2 -- failed, no route to site
+
+DESCRIPTION
+    Invoke lock-route to secure a route, then invoke the call method on the
+    selected base radio.
+
+
