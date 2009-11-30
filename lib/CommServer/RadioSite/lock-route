@@ -31,10 +31,13 @@ main () {
         n=$(($n + 1))
     done < @routes
     test -n "$locks" || {
+        # no routes were found
         rm @LOCK
         exit 2
         }
     echo $route >| @LOCK
+    echo ${route%% *} >| @base
+    echo ${route#* } >| @route
     log-route | tob log.store
     }
 
