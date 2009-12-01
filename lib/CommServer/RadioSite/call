@@ -1,13 +1,28 @@
 #!/bin/bash
 
+get-attr () {
+    attr=$1
+    undef value
+    for path in ${TOB_attribute_search_paths//:/ }; do
+        test -e $path/$attr && {
+            value=$(<$path/$attr)
+            return
+            }
+    done
+    }
+
 main () {
-    tob ..lock-route || exit 2
+    target=${TOB_object##*[./]}
+    tob ..lock-route $target || exit 2
     trap 'tob ../unlock-route' EXIT TERM
     base=$(<@base)
-    route=$(<@route)
+    repeaters=$(<@route)
     radio=$(<@radio)
+    options="--tag $target"
+    get-attr \@prompt && options="$options --prompt $value"
+    get-attr \@retries && options="$options --retries $value"
     t0=$(date +%s)
-    tob $base.call $radio $route
+    tob $base.call $options $radio $repeaters
     tm=$(date +%s)
     tob ../unlock-route
     trap - EXIT TERM

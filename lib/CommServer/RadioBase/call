@@ -6,108 +6,90 @@ use warnings;
 use Expect;
 use FreeWave_Radio::Callbook;
 
-use constant TMPDIR => '/tmp/';
-use constant DEBUG => 1;
-use constant REMOTE_PROMPT_RETRIES => 20;
+use constant DEFAULT_PROMPT_RETRIES => 20;
 
-use constant DEBUG_STEPS_FILE => "\@commserver-debug-steps";
 use constant CALL_SUMMARY_FILE => "/var/local/log/commserver-call-summary";
 
 my $t0 = time;
-my %time;
+my $time_ready2dial;
+my $time_connect;
 
 my $sitename; # store for call summary output...
 my @call_summary;
 
-## This method expects to find:
-##      @LOCK containing base and repeater nodes
-##      @radio containing the object's radio number
-##      @prompt, either in the site or inherited
-## 
-## The method does, in turn:
-##      connects to the base radio
-##      checks its callbook
-##      configures the callbook if necessary
-##      calls the target site
-##      attempts to elicit the prompt from the remote node
-##      return CONNECT if prompt was seen
-##      pass all i/o to/from client-remote
-##      break connection if:
-##          "BAIL!" is received from the client
-##          session timeout limit is exceeded
-##          client drops the connection
-## 
-## This program should then try to get radio stats from the base radio
-
-my @attr_path = ( split ':', $ENV{TOB_attribute_search_paths} );
-my @method_path = ( split ':', $ENV{TOB_method_search_paths} );
-
 my $prompt;
-for my $p ( @attr_path ) {
-    next unless -e "$p/\@prompt";
-    open PROMPT, '<', "$p/\@prompt"
-        or die "failed to open $p/\@prompt for reading\n";
-    chomp ($prompt = <PROMPT>);
-    close PROMPT or die $!;
+my $retries = DEFAULT_PROMPT_RETRIES;
+my $tag;
+
+while ( $ARGV[0] =~ m/^-/ ) {
+    my $opt = shift;
+    if ( $opt eq '--prompt' ) {
+        $prompt = shift;
+        }
+    elsif ( $opt eq '--tag' ) {
+        $tag = shift;
+        }
+    elsif ( $opt eq '--retries' ) {
+        $retries = shift;
+        }
+    else {
+        die "unknown option: $opt\n";
+        }
     }
 
-die "site object is not locked\n" unless -e '@LOCK';
-die "site object is locked by another site\n" unless -s '@LOCK';
+my $radio = shift;
+check_radio_number($radio)
+    or die "invalid number: $radio\n";
 
-open ROUTE, '<', '@LOCK'
-    or die "failed to open \@LOCK\n";
-chomp( my $route = <ROUTE> );
-close ROUTE or die $!;
+$tag = $radio unless defined $tag;
 
-my ($base, @repsite) = split ' ', $route;
+my @route = @ARGV;
 
-open RADIO, '<', '@radio'
-    or die "failed to open \@radio\n";
-chomp( my ($radio) = <RADIO> );
-close RADIO or die $!;
+for my $node ( . @route ) {
+    die "no lock found at $node\n"
+        unless -e "$node/\@LOCK";
+    if ( defined $tag && file_contents("$node/\@LOCK") ne $tag ) {
+        my $content = file_contents("$node/\@LOCK");
+        die "$node/\@LOCK contains $content, not $tag\n" 
+        }
+    }
 
-open BASE, '<', "$base/\%ip2radio" 
-    or die "failed to open $base\%ip2radio in base\n";
-my ($host, $port);
-while ( <BASE> ) {
-    chomp;
+# ASSERT: all locks exist and contain the $tag if given
+
+foreach ( file_contents("\%ip2radio") ) {
     $host = $1 if m/host=(\S+)/;
     $port = $1 if m/port=(\S+)/;
     }
-close BASE or die $!;
 
 my @repeater;
-for my $site ( @repsite ) {
-    die "no lock in repeater $site\n"
-        unless -e "$site/\@LOCK";
-    die "lock in repeater $site is not a repeater lock\n"
-        unless -s "$site/\@LOCK" == 0;
-    open REP, '<', "$site/\@radio"
-        or die "failed to open \@radio in repeater $site\n";
-    chomp( my $repeater = <REP> );
-    push @repeater, $repeater;
-    close REP or die $!;
+for my $node ( @route ) {
+    die "$node/\@radio not found\n" unless
+        unless -e "$node/\@radio";
+
+    my $number - file_contents("$node/\@radio");
+
+    check_radio_number($number) 
+        or die "invalid repeater radio number: $number\n";
+    push @repeater, $number;
     }
 
+
 if ( 1 ) { # debug settings
-    print 'attr_path: ', join(',', @attr_path), "\n";
-    print 'method_path: ', join(',', @method_path), "\n";
     print "prompt: $prompt\n";
-    print "route:\n\t", join("\n\t", $base, @repsite), "\n";
     print "host: $host\n";
     print "port: $port\n";
+    print "route:\n\t", join("\n\t", @route), "\n";
     print "radios:\n\t", join("\n\t", $radio, @repeater), "\n";
-    
     exit 0;
     }
 
-open DEBUG_STEPS, '>', $base . '/' . DEBUG_STEPS_FILE or die $!;
-select DEBUG_STEPS;
+open STEPS, '>', '\@session-steps' or die $!;
+select STEPS;
 $| = 1; ## turn buffering off 
 select STDOUT;
 
-log_progress(time);
-log_progress($ENV{TOB_object} . '.' . $ENV{TOB_method});
+log_steps(time);
+log_steps($ENV{TOB_object} . '.' . $ENV{TOB_method});
 
 
 $| = 1; ## turn buffering off on STDOUT to client
@@ -120,8 +102,7 @@ $exp->raw_pty(1); # sets the pty to raw mode
 
 $exp->log_stdout(0); ## 0=supress, 1=copy process output to stdout
 
-# start by saving the session log in the base site object:
-$exp->log_file( $site '/@session', 'w');
+$exp->log_file( $site '/@radio-config-log', 'w');
 
 my @nc_options = ();
 
@@ -134,22 +115,21 @@ if ( $host =~ m/^http:.+/ ) { # special case: URL contains dynamic ip
   # print qq(DEBUG: obtained ip "$host"\n);
     }
 
-log_progress("connecting to base radio");
+log_steps("connecting to base radio");
 
 $exp->spawn("/bin/nc", @nc_options, $host, $port)
     or die "Cannot spawn nc: $!\n";
 
 $exp->restart_timeout_upon_receive(1);
 
-# this timeout ought to be configured in the base object or class:
-my $timeout = 10;
+my $timeout = file_contents("\@timeout-config-phase") || 10;
 
 ## send a couple of escapes in case radio is left in config mode...
 $exp->send("\e\e");
 
 ## ASSERT: radio should be in command mode
 
-log_progress("sending radio setup commands...");
+log_steps("sending radio setup commands...");
 
 # invoke radio setup menus:
 $exp->send("ATXS");
@@ -166,13 +146,13 @@ my $entry;
 my $rep_path;
 $entry = $callbook->repeater_path_entry($rep_path) if defined $rep_path;
 
-log_progress("using repaater path $entry") if defined $entry;
+log_steps("using repaater path $entry") if defined $entry;
 
 my $entry_type = defined $entry ? 'exists' : 'new';
 
 unless ( defined $entry ) { # existing repeater path was not found, so configure...
     $entry = '8';
-    log_progress("configuring repaater path 8...");
+    log_steps("configuring repaater path 8...");
     # clear entry #9:
     $exp->send("9");
     $exp->expect($timeout, "9") # number is echoed
@@ -183,7 +163,7 @@ unless ( defined $entry ) { # existing repeater path was not found, so configure
     $exp->expect($timeout, "Enter all zeros")
         or timed_out('no "Enter all zeros" callbook prompt, zeroed entry "9"');
     
-    log_progress("entering radio number");
+    log_steps("entering radio number");
     
     $exp->send("8");
     $exp->expect($timeout, "8") # number is echoed
@@ -204,7 +184,7 @@ unless ( defined $entry ) { # existing repeater path was not found, so configure
     else { # repeaters are called out
         my $n = 0; ## refer to repeaters ordinally, i.e., 1, 2, 3, 4
         while ( defined $repeater->[++$n-1] ) {
-            log_progress("entering repeater number");
+            log_steps("entering repeater number");
             if ( $n == 1 ) { # enter 1st repeater
                 $exp->send($repeater->[$n-1]);
                 $exp->expect($timeout, "Enter Repeater")
@@ -247,15 +227,15 @@ $exp->expect($timeout, "Enter Choice")
 $exp->send("\e"); # escape out of config mode to command mode (no response)
 $exp->send("\e"); # send another just for good measure??
 
-$timeout = 20;
+$timeout = file_contents("\@timeout-connect-phase") || 20;
 
 sleep 1;
 
 my $dial_string = "ATXC${entry}ATD$radio";
 
-log_progress("ready to dial target radio with $dial_string");
+log_steps("ready to dial target radio with $dial_string");
 
-$time{ready2dial} = time;
+$time_ready2dial = time;
 
 $rep_path = '' unless $rep_path; # for output...
 push @call_summary, $dial_string, $entry_type, $rep_path;
@@ -264,15 +244,14 @@ push @call_summary, $dial_string, $entry_type, $rep_path;
 $exp->send($dial_string); # try to connect to the target radio
 $exp->expect($timeout, "OK")  # command was acted upon
     or timed_out('no "OK" response from ATDT command');
-log_progress("saw 'OK'");
+log_steps("saw 'OK'");
 $exp->expect($timeout, "CONNECT")  # first radio (target or repeater) reached
     or timed_out('no "CONNECT" response');
-log_progress("saw 'CONNECT'");
+log_steps("saw 'CONNECT'");
 
 my $see_target;
 if ( $prompt ) {
-    my $retries = $retries || REMOTE_PROMPT_RETRIES;
-    log_progress("sending CR");
+    log_steps("sending CR");
     $exp->expect(1, '-re', ".*"); 
     $exp->send("\r");
  #  my $regex_prompt = $prompt;
@@ -285,7 +264,7 @@ if ( $prompt ) {
   # while ( ! $see_target && --$retries ) {
     while ( ! $see_target ) {
         last unless --$retries;
-        log_progress("sending CR ($retries retries)");
+        log_steps("sending CR ($retries retries)");
         $exp->send("\r"); # try to get a prompt
         $see_target = $exp->expect(1, $prompt); # wait for 1 second
       # print '.'; # progress indicator
@@ -293,27 +272,31 @@ if ( $prompt ) {
     }
 
 if ( $see_target ) {
-    log_progress("saw target prompt, sending 'CONNECTED' to client");
+    log_steps("saw target prompt, sending 'CONNECTED' to client");
     print "CONNECTED\r\n";
     push @call_summary, 'ok';
     }
 else {
-    log_progress("no target prompt, sending 'NO_PROMPT_SEEN' to client");
+    log_steps("no target prompt, sending 'NO_PROMPT_SEEN' to client");
     print "NO_PROMPT_SEEN\r\n";
-    log_progress("quitting");
+    log_steps("quitting");
     push @call_summary, 'no';
     log_call_summary();
     die "bye!\n";
     }
 
-$time{connect} = time;
+$time_connect = time;
 
-log_progress("going interactive with client...");
+log_steps("going interactive with client...");
+
+# close previous log file, open another:
+$exp->log_file( '');
+$exp->log_file( 'session/@$target', 'w');
 
 $exp->interact(\*STDIN, 'BAIL!');
 # $exp->interact();
 
-log_progress("client has terminated connection");
+log_steps("client has terminated connection");
 
 log_call_summary();
 
@@ -323,8 +306,8 @@ sub log_call_summary {
     my ($s, $m, $h, $y, $d) = (localtime $t0)[0, 1, 2, 5, 7];
     my $tmstamp = sprintf "%4d-%03d-%02d:%02d:%02d", $y+1900, $d+1, $h, $m, $s;
     print "DEBUG $tmstamp\n";
-    my $tm_up2dial = $time{ready2dial} ? $time{ready2dial} - $t0 . 's' : '-';
-    my $tm_connect = $time{connect} ? $time{connect} - $t0 . 's' : '-';
+    my $tm_up2dial = $time_ready2dial ? $time_ready2dial - $t0 . 's' : '-';
+    my $tm_connect = $time_connect ? $time_connect - $t0 . 's' : '-';
     my $tm_total = time - $t0 . 's';
     open CALL_SUMMARY, ">>", CALL_SUMMARY_FILE or die $!;
     print CALL_SUMMARY
@@ -338,12 +321,30 @@ sub timed_out {
     $msg = 'n/a' unless defined $msg;
     push @call_summary, "timed_out:$msg";
     log_call_summary();
-    log_progress("expect() timed out: $msg");
+    log_steps("expect() timed out: $msg");
     print "ABORTING CONNECTION\r\n";
     $exp->send("\e\e"); # send escapes in case in radio setup mode
     die qq(expect() timed out: $msg\n);
     }
 
-sub log_progress {
-    printf DEBUG_STEPS "%d %s\n", time - $t0, "@_";
+sub log_steps {
+    printf STEPS "%d %s\n", time - $t0, "@_";
     }
+
+sub check_radio_number {
+    return $_[0] =~ m/[0-9]{3}-?[0-9]{4}/;
+    }
+
+sub file_contents {
+    my $file = shift;
+    my @content;
+    open FILE, '<', $file
+        or die "failed to open $file\n";
+    while ( <FILE> ) {
+        chomp;
+        push @content, $_;
+        }
+    close FILE or die $!;
+    return @content;
+    }
+    

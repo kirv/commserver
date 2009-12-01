@@ -4,7 +4,7 @@ set -o noclobber
 
 lock_route () {
     for node in $*; do
-        >$node/@LOCK || {
+        $content > $node/@LOCK || {
             test -n "$locks" && rm $locks
             unset locks
             return 1
@@ -23,7 +23,8 @@ log-route () {
     }
 
 main () {
-    >@LOCK || exit 1
+    content=$1
+    $content > >@LOCK || exit 1
     unset locks
     n=1
     while read route; do
@@ -35,18 +36,20 @@ main () {
         rm @LOCK
         exit 2
         }
-    echo $route >| @LOCK
     echo ${route%% *} >| @base
     echo ${route#* } >| @route
     log-route | tob log.store
     }
 
-main 2>/dev/null
+main $* 2>/dev/null
 
 exit
 
 NAME
     lock-route
+
+SYNOPSIS
+    radiosite.lock-route [content]
 
 EXIT VALUES
     0 -- success
@@ -54,6 +57,10 @@ EXIT VALUES
     2 -- no route found
 
 DESCRIPTION
-    Assumes @routes list exists. Finds a route from the object to a
-    base station, setting file @LOCK in each node.  Write the found route
-    into file @LOCK in the object.
+    Assumes @routes list exists and is ordered. Finds a route from
+    the object to a base station, setting file @LOCK in each node.
+    Write the found route into files '@base' and '@route' in the object.
+
+    Lock files are named '@LOCK' and can be empty or contain the contents
+    provided as an argument.
+

@@ -167,6 +167,19 @@ or:
   
 =head1 DESCRIPTION
 
+=head1 METHODS
+
+parse_callbook -- provide array of callbook listing lines 
+
+_scan_entries --
+
+radio_path_entry -- given radio number, return entry index(es)
+
+repeater_path_entry -- given path, return entry index number
+
+print_repeater_paths --
+
+print_radio_paths --
 
 =head1 AUTHOR
 
