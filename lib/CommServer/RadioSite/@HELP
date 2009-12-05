@@ -1,0 +1,30 @@
+NAME
+    CommServer/RadioSite -- thinobject to represent a radio node
+
+DESCRIPTION
+    The RadioSite data type represents a FreeWave radio, usually with
+    a device of some kind connected to its serial port.
+
+METHODS
+    init
+    call
+    update-routes
+    rank-routes
+    lock-route
+    unlock-route
+
+PROPERTIES
+    @radio -- Freewave radio serial number
+    @LOCK -- temporary lock file, managed by methods lock-route, unlock-route
+    @routes -- set of routes, managed by method update-routes, rank-routes
+    log -- thinobject TimeSeries object 
+    _/ -- directory containing RadioLink objects
+
+SEE ALSO
+    CommServer, CommServer/RadioBase
+
+BUGS
+
+AUTHOR
+    Ken Irving <ken.irving@alaska.edu> (c) 2009
+    Licensed under the GPL (Gnu Public Library)

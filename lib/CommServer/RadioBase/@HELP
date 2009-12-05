@@ -1,0 +1,25 @@
+NAME
+    CommServer/RadioBase -- thinobject to represent radio base station
+
+DESCRIPTION
+    The RadioBase data type represents a FreeWave radio (e.g., FGR series)
+    which is accessible by some means.  The *call* method will check and
+    manipulate the radio callbook, then initiate a call to a target radio
+    node.
+
+    RadioBase inherits from RadioSite, so that a base radio can also be
+    reached from a different base through the radio network.
+
+METHODS
+    call
+
+PROPERTIES
+
+SEE ALSO
+    CommServer, CommServer/RadioSite
+
+BUGS
+
+AUTHOR
+    Ken Irving <ken.irving@alaska.edu> (c) 2009
+    Licensed under the GPL (Gnu Public Library)

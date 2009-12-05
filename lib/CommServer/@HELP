@@ -1,0 +1,24 @@
+NAME
+    CommServer -- thinobject application to manage radio communications
+
+DESCRIPTION
+    CommServer is an organization using the thinobject scheme of several
+    classes with the goal of providing access to remote hosts using 
+    FreeWave radios in point-to-point mode.
+
+    The CommServer class itself is just a placeholder, and (currently, at
+    least) is not intended to be instantiated.
+
+CLASSES
+    RadioSite -- radio node with links to other sites
+    RadioBase -- radio node with access via Internet or other means
+    RadioLink -- contained in a site, represents links to another site
+
+SEE ALSO
+    CommServer/RadioSite, CommServer/RadioBase, CommServer/RadioLink
+
+BUGS
+
+AUTHOR
+    Ken Irving <ken.irving@alaska.edu> (c) 2009
+    Licensed under the GPL (Gnu Public Library)

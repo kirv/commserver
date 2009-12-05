@@ -1,0 +1,22 @@
+NAME
+    CommServer/RadioLink -- thinobject to represent radio link 
+
+DESCRIPTION
+    The RadioLink data type is intended to be contained in a RadioSite
+    object
+
+PROPERTIES
+    ! -- symlink to a RadioSite object
+    @distance -- link distance in kilometers
+    @visibility -- 1.0 means perfect, 0.0 means completely obstructed
+
+METHODS
+
+SEE ALSO
+    CommServer/RadioSite, CommServer/RadioBase
+
+BUGS
+
+AUTHOR
+    Ken Irving <ken.irving@alaska.edu> (c) 2009
+    Licensed under the GPL (Gnu Public Library)
