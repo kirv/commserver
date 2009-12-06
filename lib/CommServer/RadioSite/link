@@ -1,0 +1,25 @@
+#!/bin/bash
+
+test -n "$1" || {
+    exec ls -1 _
+    }
+
+for link in $*; do
+    ls -l _/$link
+done
+
+
+exit
+
+NAME
+    link
+
+SYNOPSIS
+    RadioSite.link      -- show links
+    RadioSite.link foo  -- show link information
+    RadioSite.link --add $symlink name  -- add new link 
+
+DESCRIPTION
+    
+
+

@@ -1,0 +1,5 @@
+#!/bin/sh
+
+touch @distance=100
+touch @visbility=1
+

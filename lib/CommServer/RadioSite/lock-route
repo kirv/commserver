@@ -4,11 +4,13 @@ set -o noclobber
 
 lock_route () {
     for node in $*; do
-        $content > $node/@LOCK || {
+        >$node/@LOCK || {
             test -n "$locks" && rm $locks
             unset locks
             return 1
             }
+        test -n "$tag" &&
+             echo $tag >| $node/@LOCK
         locks="$locks $node/@LOCK"
     done
     return 0
@@ -19,29 +21,39 @@ log-route () {
     for node in $route; do
         printf " ${node##*/}"
     done
-    printf " ${TOB_object##*[./]}\n"
+    if test -n "$tag"; then
+        printf " $tag\n"
+    else
+        printf " ${TOB_object##*[./]}"
+    fi
     }
 
 main () {
-    content=$1
-    $content > >@LOCK || exit 1
+    if test -n "$tag"; then
+        printf $tag >\@LOCK || exit 1
+    else
+        >\@LOCK || exit 1
+    fi
     unset locks
     n=1
     while read route; do
         lock_route $route && break
         n=$(($n + 1))
     done < @routes
+    
     test -n "$locks" || {
         # no routes were found
         rm @LOCK
         exit 2
         }
-    echo ${route%% *} >| @base
-    echo ${route#* } >| @route
+    echo $route >| @LOCK
     log-route | tob log.store
     }
 
-main $* 2>/dev/null
+test -n "$1" &&
+    tag=$1
+
+main 2>/dev/null
 
 exit
 
@@ -49,7 +61,7 @@ NAME
     lock-route
 
 SYNOPSIS
-    radiosite.lock-route [content]
+    radiosite.lock-route [tag]
 
 EXIT VALUES
     0 -- success
@@ -61,6 +73,6 @@ DESCRIPTION
     the object to a base station, setting file @LOCK in each node.
     Write the found route into files '@base' and '@route' in the object.
 
-    Lock files are named '@LOCK' and can be empty or contain the contents
+    Lock files are named '@LOCK' and can be empty or contain a tag string
     provided as an argument.
 

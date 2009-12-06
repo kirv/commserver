@@ -2,6 +2,10 @@
 
 unlock-route () {
     for node in $(cat @LOCK); do
+        test -n "$tag" && {
+            test "$(<$node/@LOCK)" == $tag ||
+                return 1
+            }
         rm $node/@LOCK || {
             nolock="$nolock ${node##*/}"
             m=$(($m + 1))
@@ -15,9 +19,9 @@ unlock-route () {
     }
 
 main () {
+    test -n "$1" && tag=$1
     test -e @LOCK || exit 3
     test -s @LOCK || exit 2
-    test -n "$VERBOSE" && printf "unlocked"
     nodes=""
     nolock=""
     n=0
@@ -26,11 +30,9 @@ main () {
     unset mplural
     unlock-route && rm @LOCK && n=$(($n + 1)) || {
         test $n -gt 1 && nplural=s
-        m_plural
-        echo failed to remove any lock$nplural in $node$nplural | tob log.store
+        echo failed to remove lock$nplural in $node$nplural | tob log.store
         return 1
         }
-    test -n "$VERBOSE" && printf " $TOB_object\n"
     test $n -gt 1 && nplural=s
     msg="removed $n lock$nplural: $nodes ${TOB_object##*[./]}"
     test -n "$nolock" && {
@@ -40,7 +42,7 @@ main () {
     echo $msg | tob log.store
     }
 
-main
+main $*
 
 exit
 

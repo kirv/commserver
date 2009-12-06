@@ -1,0 +1,41 @@
+#!/bin/bash
+
+useage="link-add PATH_TO_SITE [NAME]"
+
+link=$1 && shift
+name=$1 && shift
+
+test -e $link/ || {
+    # link not found
+    test -e $TOB_caller_path/$link/ && 
+        link=$TOB_caller_path/$link/
+    test -e $link/ || {
+        # still not found
+        exit 3
+        }
+    }
+
+link=$(readlink -f $link) ||
+    exit 4
+
+test -n "$name" ||
+    name=${link##*/}
+
+echo $name $link
+
+tob-new _/$name CommServer/RadioLink &&
+    ln -s $link _/$name/!
+
+
+exit
+
+NAME
+    link-add -- add a radio link object to a radio site
+
+SYNOPSIS
+    link-add $symlink name
+
+DESCRIPTION
+    
+
+

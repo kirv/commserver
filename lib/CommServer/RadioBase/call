@@ -38,24 +38,28 @@ while ( $ARGV[0] =~ m/^-/ ) {
     }
 
 my $radio = shift;
-check_radio_number($radio)
+$radio = check_radio_number($radio)
     or die "invalid number: $radio\n";
 
 $tag = $radio unless defined $tag;
 
 my @route = @ARGV;
 
-for my $node ( . @route ) {
+die "no lock found\n" unless -e "\@LOCK";
+die "lock is empty\n" unless -s "\@LOCK";
+
+foreach my $node ( @route ) {
     die "no lock found at $node\n"
         unless -e "$node/\@LOCK";
     if ( defined $tag && file_contents("$node/\@LOCK") ne $tag ) {
         my $content = file_contents("$node/\@LOCK");
-        die "$node/\@LOCK contains $content, not $tag\n" 
+        die "$node/\@LOCK contains $content, not $tag\n";
         }
     }
 
 # ASSERT: all locks exist and contain the $tag if given
 
+my ($host, $port);
 foreach ( file_contents("\%ip2radio") ) {
     $host = $1 if m/host=(\S+)/;
     $port = $1 if m/port=(\S+)/;
@@ -63,12 +67,12 @@ foreach ( file_contents("\%ip2radio") ) {
 
 my @repeater;
 for my $node ( @route ) {
-    die "$node/\@radio not found\n" unless
+    die "$node/\@radio not found\n" 
         unless -e "$node/\@radio";
 
-    my $number - file_contents("$node/\@radio");
+    my $number = file_contents("$node/\@radio");
 
-    check_radio_number($number) 
+    $number = check_radio_number($number) 
         or die "invalid repeater radio number: $number\n";
     push @repeater, $number;
     }
@@ -80,10 +84,10 @@ if ( 1 ) { # debug settings
     print "port: $port\n";
     print "route:\n\t", join("\n\t", @route), "\n";
     print "radios:\n\t", join("\n\t", $radio, @repeater), "\n";
-    exit 0;
+  # exit 0;
     }
 
-open STEPS, '>', '\@session-steps' or die $!;
+open STEPS, '>', '@session-steps' or die $!;
 select STEPS;
 $| = 1; ## turn buffering off 
 select STDOUT;
@@ -102,7 +106,7 @@ $exp->raw_pty(1); # sets the pty to raw mode
 
 $exp->log_stdout(0); ## 0=supress, 1=copy process output to stdout
 
-$exp->log_file( $site '/@radio-config-log', 'w');
+$exp->log_file( '@radio-config-log', 'w');
 
 my @nc_options = ();
 
@@ -122,7 +126,9 @@ $exp->spawn("/bin/nc", @nc_options, $host, $port)
 
 $exp->restart_timeout_upon_receive(1);
 
-my $timeout = file_contents("\@timeout-config-phase") || 10;
+my $timeout = 10;
+$timeout = file_contents('@timeout-config-phase')
+    if -e '@timeout-config-phase';
 
 ## send a couple of escapes in case radio is left in config mode...
 $exp->send("\e\e");
@@ -175,7 +181,7 @@ unless ( defined $entry ) { # existing repeater path was not found, so configure
     $exp->expect($timeout, "Enter Repeater")
         or timed_out('no "Enter Repeater" callbook prompt, entry "8"');
     
-    unless ( @{$repeater} ) { # no repeaters
+    unless ( @repeater ) { # no repeaters
         $exp->send("\e");
         $exp->expect($timeout, "Enter all zeros")
             or timed_out('no "Enter all zeros" callbook prompt, entry "8", no repeaters');
@@ -183,15 +189,15 @@ unless ( defined $entry ) { # existing repeater path was not found, so configure
         } 
     else { # repeaters are called out
         my $n = 0; ## refer to repeaters ordinally, i.e., 1, 2, 3, 4
-        while ( defined $repeater->[++$n-1] ) {
+        while ( defined $repeater[++$n-1] ) {
             log_steps("entering repeater number");
             if ( $n == 1 ) { # enter 1st repeater
-                $exp->send($repeater->[$n-1]);
+                $exp->send($repeater[$n-1]);
                 $exp->expect($timeout, "Enter Repeater")
                     or timed_out("no ${n}th \"Enter Repeater\" callbook prompt");
                 }
             elsif ( $n == 2 || $n == 4 ) { # transaction concludes after entry
-                $exp->send($repeater->[$n-1]);
+                $exp->send($repeater[$n-1]);
                 $exp->expect($timeout, "Enter all zeros")
                     or timed_out("no \"Enter all zeros\" callbook prompt ($n)");
                 }
@@ -205,13 +211,13 @@ unless ( defined $entry ) { # existing repeater path was not found, so configure
                 $exp->send("9999999"); ## special value for extended repeater path
                 $exp->expect($timeout, "Enter Repeater")
                     or timed_out("no 1st \"Enter Repeater\" callbook prompt, entry \"9\", repeater $n");
-                $exp->send($repeater->[$n-1]);
+                $exp->send($repeater[$n-1]);
                 $exp->expect($timeout, "Enter Repeater")
                     or timed_out("no 2nd \"Enter Repeater\" callbook prompt, entry \"9\", repeater $n");
                 }
             }
         ## ASSERT: may be at top level or waiting for 2nd or 4th repeater
-        if ( @{$repeater} % 2 ) { # odd number of repeaters, 1 or 3
+        if ( @repeater % 2 ) { # odd number of repeaters, 1 or 3
             $exp->send("\e"); # terminate 
             $exp->expect($timeout, "Enter all zeros")
                 or timed_out('no callbook menu 2 "Enter all zeros" prompt, ending entries');
@@ -227,7 +233,9 @@ $exp->expect($timeout, "Enter Choice")
 $exp->send("\e"); # escape out of config mode to command mode (no response)
 $exp->send("\e"); # send another just for good measure??
 
-$timeout = file_contents("\@timeout-connect-phase") || 20;
+$timeout = 20;
+$timeout = file_contents('@timeout-connect-phase')
+    if -e '@timeout-connect-phase';
 
 sleep 1;
 
@@ -332,7 +340,9 @@ sub log_steps {
     }
 
 sub check_radio_number {
-    return $_[0] =~ m/[0-9]{3}-?[0-9]{4}/;
+    my $number = shift;
+    return 0 unless $number =~ m/([0-9]{3})-?([0-9]{4})/;
+    return "$1$2";
     }
 
 sub file_contents {
@@ -345,6 +355,7 @@ sub file_contents {
         push @content, $_;
         }
     close FILE or die $!;
+    return $content[0] if scalar @content == 1;
     return @content;
     }
     

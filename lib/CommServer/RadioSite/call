@@ -2,31 +2,41 @@
 
 get-attr () {
     attr=$1
-    undef value
+    unset value
     for path in ${TOB_attribute_search_paths//:/ }; do
         test -e $path/$attr && {
             value=$(<$path/$attr)
-            return
+            test "$value" == '*' &&
+                value='\*'
+            return 0
             }
     done
     }
 
 main () {
-    target=${TOB_object##*[./]}
-    tob ..lock-route $target || exit 2
+    tag=${TOB_object##*[./]}
+    tob ..lock-route $tag || exit 2
     trap 'tob ../unlock-route' EXIT TERM
-    base=$(<@base)
-    repeaters=$(<@route)
+    route=$(<@LOCK)
+    base=${route%% *}
+    repeaters=${route#* }
+    echo $base > @base
+    echo $repeaters > @route
+    test "$repeaters" == $base &&{
+        unset repeaters
+        >@route
+        }
     radio=$(<@radio)
-    options="--tag $target"
+    options="--tag $tag"
     get-attr \@prompt && options="$options --prompt $value"
     get-attr \@retries && options="$options --retries $value"
     t0=$(date +%s)
+    echo tob $base.call $options $radio $repeaters
     tob $base.call $options $radio $repeaters
-    tm=$(date +%s)
-    tob ../unlock-route
+    elapsed=$(( $(date +%s) - $t0 ))
+    tob ../unlock-route $tag
     trap - EXIT TERM
-    printf "%ds to call via %s to %s\n" $(($tm - $t0)) $base $route
+    printf "%ds to call via %s to %s\n" $elapsed $base "$repeaters"
     }
 
 main

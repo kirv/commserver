@@ -1,5 +1,6 @@
 #!/bin/sh
 
+## called with no arguments, generate the @routes property:
 test -n "$1" || {
     tm=$(date +%s)
     $0 $(readlink -f $PWD) > @routes
@@ -10,6 +11,7 @@ test -n "$1" || {
     exit 
     }
 
+## stop following links once a base is reached:
 test -e %ip2radio && {
     # drop the first node, output the rest in reverse order:
     shift 
@@ -23,23 +25,26 @@ test -e %ip2radio && {
     exit 0
     }
 
+## stop following links if link count exceeds (hard-coded) limit
 test $# -le 5 ||
     exit 0
 
-for up in _/*; do
+## check & recurse into each link in this object
+for link in _/*; do
 
-    test -L $up -o -d $up ||
+    test -L $link/! -o -d $link/! ||
         exit 1
 
-    up=$(readlink -f $up)
+    link=$(readlink -f $link/!)
 
+    ## skip any link already visited:
     for hop in $*; do
-        test $hop == $up &&
+        test $hop == $link &&
             continue 2
     done
 
-    # invoke this method by name using thinobject dispatcher:
-    tob $up.${0##*/} $* $up ||
+    # recurse by invoking this method by name using thinobject dispatcher:
+    tob $link.${0##*/} $* $link ||
         exit 1
 
 done
