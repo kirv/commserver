@@ -1,5 +1,7 @@
 #!/bin/bash
 
+usage="unlock-route [-h] [--help] [TAG]"
+
 unlock-route () {
     for node in $(cat @LOCK); do
         test -n "$tag" && {
@@ -19,7 +21,6 @@ unlock-route () {
     }
 
 main () {
-    test -n "$1" && tag=$1
     test -e @LOCK || exit 3
     test -s @LOCK || exit 2
     nodes=""
@@ -42,7 +43,18 @@ main () {
     echo $msg | tob log.store
     }
 
-main $*
+test -n "$1" && {
+    tag=$1
+    if test $tag == -h; then
+        echo "$usage"
+        exit 0
+    elif test $tag == --help; then
+        exec awk '/^NAME/{ok=1}ok{print}' $0  
+    fi
+
+    }
+
+main
 
 exit
 

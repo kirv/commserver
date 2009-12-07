@@ -1,5 +1,7 @@
 #!/bin/bash
 
+usage="lock-route [-h] [--help] [TAG]"
+
 set -o noclobber
 
 lock_route () {
@@ -50,8 +52,16 @@ main () {
     log-route | tob log.store
     }
 
-test -n "$1" &&
+test -n "$1" && {
     tag=$1
+    if test $tag == -h; then
+        echo "$usage"
+        exit 0
+    elif test $tag == --help; then
+        exec awk '/^NAME/{ok=1}ok{print}' $0  
+    fi
+
+    }
 
 main 2>/dev/null
 
