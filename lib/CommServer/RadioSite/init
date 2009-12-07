@@ -1,6 +1,29 @@
 #!/bin/sh
 
-touch @radio
+usage="RadioSite.init [--radio CODE] [--name STRING]"
+
+# create _ directory for radio links to other sites
+tob-new --hide-attr _ Object
+
+while test -n "$1"; do
+    arg=$1 && shift
+
+    if test $arg == --radio; then
+        radio=$1 && shift
+
+    elif test $arg == --name; then
+        name="$1" && shift
+    else
+        echo RadioSite.init -- unknown argument: $arg >&2
+        exit 1
+    fi
+done
+
+test -n "$radio" && 
+    echo $radio > \@radio
+
+test -n "$name" && 
+    echo $name > \@name
 
 tob-new log TimeSeries
 

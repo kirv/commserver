@@ -1,9 +1,8 @@
 #!/bin/bash
 
-useage="link-add PATH_TO_SITE [NAME]"
+useage="link-add PATH_TO_SITE [INIT ARGS]"
 
 link=$1 && shift
-name=$1 && shift
 
 test -e $link/ || {
     # link not found
@@ -18,12 +17,9 @@ test -e $link/ || {
 link=$(readlink -f $link) ||
     exit 4
 
-test -n "$name" ||
-    name=${link##*/}
+name=${link##*/}
 
-echo $name $link
-
-tob-new _/$name CommServer/RadioLink &&
+tob-new --hide-attr _/$name CommServer/RadioLink "$@" &&
     ln -s $link _/$name/!
 
 
@@ -33,9 +29,15 @@ NAME
     link-add -- add a radio link object to a radio site
 
 SYNOPSIS
-    link-add $symlink name
+    link-add PATH_TO_SITE [INIT ARGS]
 
 DESCRIPTION
+    Create a new CommServer/RadioLink object in the object.  The init method is
+    called after the link object is created, and can take two optional arguments:
     
+        --distance DISTANCE
+        --visibility NUMBER
+
+    where DISTANCE is in kilometers, and NUMBER is any number from 0 to 1.
 
 

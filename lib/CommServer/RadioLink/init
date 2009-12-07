@@ -1,5 +1,25 @@
 #!/bin/sh
 
-touch @distance=100
-touch @visbility=1
+while test -n "$1"; do
+    arg=$1 && shift
+
+    if test $arg == --distance; then
+        distance=$1 && shift
+
+    elif test $arg == --visibility; then
+        visibility="$1" && shift
+    else
+        echo RadioLink.init -- unknown argument: $arg >&2
+        exit 1
+    fi
+done
+
+test -n "$distance" ||
+    distance=100
+
+test -n "$visibility" || 
+    visibility=1
+
+touch distance=$distance
+touch visbility=$visibility
 
