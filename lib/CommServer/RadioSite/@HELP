@@ -18,7 +18,7 @@ PROPERTIES
     @LOCK -- temporary lock file, managed by methods lock-route, unlock-route
     @routes -- set of routes, managed by method update-routes, rank-routes
     log -- thinobject TimeSeries object 
-    _/ -- directory containing RadioLink objects
+    linkto/ -- directory containing RadioLink objects
 
 SEE ALSO
     CommServer, CommServer/RadioBase

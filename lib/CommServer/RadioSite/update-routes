@@ -30,7 +30,7 @@ test $# -le 5 ||
     exit 0
 
 ## check & recurse into each link in this object
-for link in _/*; do
+for link in linkto/*; do
 
     test -L $link/! -o -d $link/! ||
         exit 1

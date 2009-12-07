@@ -19,8 +19,8 @@ link=$(readlink -f $link) ||
 
 name=${link##*/}
 
-tob-new --hide-attr _/$name CommServer/RadioLink "$@" &&
-    ln -s $link _/$name/!
+tob-new --hide-attr linkto/$name CommServer/RadioLink "$@" &&
+    ln -s $link linkto/$name/!
 
 
 exit

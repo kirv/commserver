@@ -1,11 +1,11 @@
 #!/bin/bash
 
 test -n "$1" || {
-    exec ls -1 _
+    exec ls -1 linkto
     }
 
 for link in $*; do
-    ls -l _/$link
+    ls -l linkto/$link
 done
 
 
