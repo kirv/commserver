@@ -19,9 +19,17 @@ link=$(readlink -f $link) ||
 
 name=${link##*/}
 
+for node in linkto/*; do
+    test -L $node/! || continue
+    existing=$(readlink -f $node/!)
+    test $link == $existing && {
+        echo link to $name already exists as $node >&2
+        exit 2
+        }
+done
+
 tob-new --hide-attr linkto/$name CommServer/RadioLink "$@" &&
     ln -s $link linkto/$name/!
-
 
 exit
 
@@ -40,4 +48,9 @@ DESCRIPTION
 
     where DISTANCE is in kilometers, and NUMBER is any number from 0 to 1.
 
+EXIT STATUS
+    1 -- exit status from link-add method
+    2 -- link already exists
+    3 -- link not found
+    4 -- link did not resolve using readlink -f
 
