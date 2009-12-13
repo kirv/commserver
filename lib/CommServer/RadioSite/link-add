@@ -1,6 +1,6 @@
 #!/bin/bash
 
-useage="link-add PATH_TO_SITE [INIT ARGS]"
+useage="link-add site [init_options] [site2 [options]]..."
 
 link=$1 && shift
 
@@ -28,10 +28,22 @@ for node in linkto/*; do
         }
 done
 
-tob-new --hide-attr linkto/$name CommServer/RadioLink "$@" &&
+# extract options to pass along to RadioLink.init
+# this depends on each taking a value, or we could parse them here if necessary
+declare -a opts
+while test "${1:0:1}" == '-'; do
+    opts=( "${opts[@]}" "$1" ) && shift
+    opts=( "${opts[@]}" "$1" ) && shift
+done
+
+tob-new --hide-attr linkto/$name CommServer/RadioLink "${opts[@]}" &&
     ln -s $link linkto/$name/!
 
-exit
+# argument is assumed to be another site to link to:
+test -n "$1" &&
+    $0 "$@"
+
+exit 0
 
 NAME
     link-add -- add a radio link object to a radio site
