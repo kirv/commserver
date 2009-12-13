@@ -36,7 +36,8 @@ test -n "$port" &&
 
 ## the following should be done in super-class method init:
 
-tob-new _ Object
+# create container for radio links to other sites:
+tob-new --hide-attr linkto Object
 
 test -n "$radio" && 
     echo $radio > \@radio

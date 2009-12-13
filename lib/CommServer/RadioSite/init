@@ -2,8 +2,8 @@
 
 usage="RadioSite.init [--radio CODE] [--name STRING]"
 
-# create _ directory for radio links to other sites
-tob-new --hide-attr _ Object
+# create container for radio links to other sites:
+tob-new --hide-attr linkto Object
 
 while test -n "$1"; do
     arg=$1 && shift
