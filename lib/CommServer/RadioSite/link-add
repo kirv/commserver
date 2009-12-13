@@ -1,29 +1,35 @@
 #!/bin/bash
 
-useage="link-add site [init_options] [site2 [options]]..."
+synopsis="link-add site [init_options] [site2 [options]]..."
 
-link=$1 && shift
+test -n "$1" || {
+    echo "synopsis: $synopsis" >&2
+    exit 1
+    }
+    
+linkname=$1 && shift
+link=$linkname
 
 test -e $link/ || {
     # link not found
     test -e $TOB_caller_path/$link/ && 
         link=$TOB_caller_path/$link/
     test -e $link/ || {
-        # still not found
+        echo "link-add target $link ($linkname) not found"
         exit 3
         }
     }
 
-link=$(readlink -f $link) ||
+link=$(readlink -f $link) || {
+    echo "link-add target $link ($linkname) did not resolve to object"
     exit 4
-
-name=${link##*/}
+    }
 
 for node in linkto/*; do
     test -L $node/! || continue
     existing=$(readlink -f $node/!)
     test $link == $existing && {
-        echo link to $name already exists as $node >&2
+        echo link to $linkname already exists as $node >&2
         exit 2
         }
 done
@@ -36,12 +42,14 @@ while test "${1:0:1}" == '-'; do
     opts=( "${opts[@]}" "$1" ) && shift
 done
 
-tob-new --hide-attr linkto/$name CommServer/RadioLink "${opts[@]}" &&
-    ln -s $link linkto/$name/!
+tob-new --hide-attr linkto/$linkname CommServer/RadioLink "${opts[@]}" &&
+    ln -s $link linkto/$linkname/!
 
 # argument is assumed to be another site to link to:
-test -n "$1" &&
-    $0 "$@"
+test -n "$1" && {
+    $0 "$@" ||
+        exit
+    }
 
 exit 0
 
