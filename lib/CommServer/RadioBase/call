@@ -61,9 +61,12 @@ foreach my $node ( @route ) {
 
 my ($host, $port);
 foreach ( file_contents("\%ip2radio") ) {
-    $host = $1 if m/host=(\S+)/;
-    $port = $1 if m/port=(\S+)/;
+    $host = $1 if m/host\s*=\s*(\S+)/;
+    $port = $1 if m/port\s*=\s*(\S+)/;
     }
+
+warn "host: $host\n";
+warn "port: $port\n";
 
 my @repeater;
 for my $node ( @route ) {
