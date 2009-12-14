@@ -8,13 +8,13 @@ use FreeWave_Radio::Callbook;
 
 use constant DEFAULT_PROMPT_RETRIES => 20;
 
-use constant CALL_SUMMARY_FILE => "/var/local/log/commserver-call-summary";
+# use constant CALL_SUMMARY_FILE => "/var/local/log/commserver-call-summary-new";
+use constant CALL_SUMMARY_FILE => '@call-summary';
 
 my $t0 = time;
 my $time_ready2dial;
 my $time_connect;
 
-my $sitename; # store for call summary output...
 my @call_summary;
 
 my $prompt;
@@ -48,6 +48,7 @@ my @route = @ARGV;
 die "no lock found\n" unless -e "\@LOCK";
 die "lock is empty\n" unless -s "\@LOCK";
 
+# confirm that each node is locked and contains $tag:
 foreach my $node ( @route ) {
     die "no lock found at $node\n"
         unless -e "$node/\@LOCK";
@@ -68,6 +69,7 @@ foreach ( file_contents("\%ip2radio") ) {
 warn "host: $host\n";
 warn "port: $port\n";
 
+# resolve node radio numbers from node file path names in @route:
 my @repeater;
 for my $node ( @route ) {
     die "$node/\@radio not found\n" 
@@ -80,13 +82,14 @@ for my $node ( @route ) {
     push @repeater, $number;
     }
 
+my $rep_path = "@repeater";
 
 if ( 1 ) { # debug settings
     print "prompt: $prompt\n";
     print "host: $host\n";
     print "port: $port\n";
-    print "route:\n\t", join("\n\t", @route), "\n";
-    print "radios:\n\t", join("\n\t", $radio, @repeater), "\n";
+    print "route:\t<", join("\t", @route), ">\n";
+    print "radios:\t<", join("\t", $radio, @repeater), ">\n";
   # exit 0;
     }
 
@@ -96,12 +99,11 @@ $| = 1; ## turn buffering off
 select STDOUT;
 
 log_steps(time);
-log_steps($ENV{TOB_object} . '.' . $ENV{TOB_method});
-
+log_steps(sprintf "%s.%s %s", $ENV{TOB_object}, $ENV{TOB_method}, $tag);
 
 $| = 1; ## turn buffering off on STDOUT to client
 
-push @call_summary, $host, $sitename;
+push @call_summary, $host, $tag;
 
 my $exp = Expect->new();
 # $exp->exp_internal(1);
@@ -152,7 +154,6 @@ $exp->expect($timeout, "Enter all zeros") # (000-0000) as your last number in li
 
 my $callbook = FreeWave_Radio::Callbook->new($exp->before());
 my $entry;
-my $rep_path;
 $entry = $callbook->repeater_path_entry($rep_path) if defined $rep_path;
 
 log_steps("using repaater path $entry") if defined $entry;
@@ -301,8 +302,13 @@ $time_connect = time;
 log_steps("going interactive with client...");
 
 # close previous log file, open another:
-$exp->log_file( '');
-$exp->log_file( 'session/@$target', 'w');
+$exp->log_file('');
+$exp->log_file( "sessions/\@$tag", 'w')
+    or warn "failed to open log file: sessions/\@$tag\n";
+unlink '@session'
+    or warn "failed to remove \@session file\n";
+symlink "sessions/\@$tag", '@session'
+    or warn "failed to set symlink to sessions/\@$tag\n";
 
 $exp->interact(\*STDIN, 'BAIL!');
 # $exp->interact();
@@ -361,4 +367,4 @@ sub file_contents {
     return $content[0] if scalar @content == 1;
     return @content;
     }
-    
+

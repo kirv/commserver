@@ -47,5 +47,8 @@ test -n "$name" &&
 
 tob-new log TimeSeries
 
+# create a container for session logs:
+tob-new sessions Object
+
 echo initialized object as $(readlink ^) |
     tob log.store

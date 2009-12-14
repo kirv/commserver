@@ -1,5 +1,7 @@
 #!/bin/bash
 
+self=.
+
 get-attr () {
     attr=$1
     unset value
@@ -15,8 +17,8 @@ get-attr () {
 
 main () {
     tag=${TOB_object##*[./]}
-    tob ..lock-route $tag || exit 2
-    trap 'tob ../unlock-route' EXIT TERM
+    tob $self.lock-route $tag || exit 2
+    trap "tob $self.unlock-route" EXIT TERM
     route=$(<@LOCK)
     base=${route%% *}
     repeaters=${route#* }
@@ -34,9 +36,14 @@ main () {
     echo tob $base.call $options $radio $repeaters
     tob $base.call $options $radio $repeaters
     elapsed=$(( $(date +%s) - $t0 ))
-    tob ../unlock-route $tag
+    test -s $base/\@session &&
+        tee < $base/\@session \@session | tob sessions.store
+    tob $self.unlock-route $tag
     trap - EXIT TERM
-    printf "%ds to call via %s to %s\n" $elapsed $base "$repeaters"
+    ls -ltr
+    pwd
+    printf "%ds to call %s via %s and path <%s>\n" $elapsed $tag $base "$repeaters" |
+        tob log.store
     }
 
 main

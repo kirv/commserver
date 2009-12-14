@@ -26,6 +26,7 @@ test -n "$name" &&
     echo $name > \@name
 
 tob-new log TimeSeries
+tob-new sessions TimeSeries
 
 echo initialized object as $(readlink ^) |
     tob log.store

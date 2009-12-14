@@ -1,0 +1,10 @@
+#!/bin/sh
+
+echo prep
+
+test "$1"x == x &&
+    exec tail -f @radio-config-log @session-steps
+
+echo done
+
+tob ..super.watch "$@"
