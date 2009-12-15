@@ -1,5 +1,6 @@
 #!/bin/sh
 
+self=.
 echo prep
 
 test "$1"x == x &&
@@ -7,4 +8,4 @@ test "$1"x == x &&
 
 echo done
 
-tob ..super.watch "$@"
+tob $self.super.watch "$@"
