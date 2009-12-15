@@ -45,7 +45,11 @@ main () {
 
 test -n "$1" && {
     tag=$1
-    if test $tag == -h; then
+    if test $tag == --no-log; then
+        NOLOG=1
+        shift
+        tag=$1
+    elif test $tag == -h; then
         echo "$usage"
         exit 0
     elif test $tag == --help; then

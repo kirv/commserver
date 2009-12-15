@@ -38,7 +38,7 @@ main () {
     elapsed=$(( $(date +%s) - $t0 ))
     test -s $base/\@session &&
         tee < $base/\@session \@session | tob sessions.store
-    tob $self.unlock-route $tag
+    tob $self.unlock-route --no-log $tag
     trap - EXIT TERM
     ls -ltr
     pwd
