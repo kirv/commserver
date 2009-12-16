@@ -2,6 +2,8 @@
 
 self=.
 
+test $n "$1" && $1 == --max-hops && shift && max-hops=$1 && shift
+
 ## called with no arguments, generate the @routes property:
 test -n "$1" || {
     tm=$(date +%s)
@@ -27,8 +29,10 @@ test -e %ip2radio && {
     exit 0
     }
 
-## stop following links if link count exceeds (hard-coded) limit
-test $# -le 5 ||
+## stop following links if link count exceeds max-hops limit
+test -n "$max_hops" ||
+    get-attr @max-hops && max_hops=$attr
+test $# -le $max_hops ||
     exit 0
 
 ## check & recurse into each link in this object

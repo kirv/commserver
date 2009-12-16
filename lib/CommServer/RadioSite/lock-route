@@ -1,11 +1,11 @@
 #!/bin/bash
 
-usage="lock-route [-h] [--help] [TAG]"
+usage="lock-route [--max-hops NUMBER] [-h|--help] [TAG]"
 
 set -o noclobber
 
 lock_route () {
-    for node in $*; do
+    for node in "$@"; do
         >$node/@LOCK || {
             test -n "$locks" && rm $locks
             unset locks
@@ -30,16 +30,30 @@ log-route () {
     fi
     }
 
+get-attr () {
+    attr=$1
+    unset value
+    for path in ${TOB_attribute_search_paths//:/ }; do
+        test -e $path/$attr && {
+            attr=$(<$path/$attr)
+            return 0
+            }
+    done
+    return 1
+    }
+
 main () {
     if test -n "$tag"; then
-        printf $tag >\@LOCK || exit 1
+        printf "$tag" >\@LOCK || exit 1
     else
         >\@LOCK || exit 1
     fi
     unset locks
     n=1
     while read route; do
-        lock_route $route && break
+        route=($route)
+        ${#route[@]} -gt $max_hops && continue
+        lock_route ${route[@]} && break
         n=$(($n + 1))
     done < @routes
     
@@ -48,19 +62,26 @@ main () {
         rm @LOCK
         exit 2
         }
-    echo $route >| @LOCK
+    echo "${route[@]}" >| @LOCK
     log-route | tob log.store
     }
 
-test -n "$1" && {
-    tag=$1
-    if test $tag == -h; then
+while test -n "$1"; do
+    tag=$1 && shift
+    if test $tag == --max-hops; then
+        max_hops=$1 && shift
+    elif test $tag == -h; then
         echo "$usage"
         exit 0
     elif test $tag == --help; then
         exec awk '/^NAME/{ok=1}ok{print}' $0  
     fi
+done
 
+test -n "$max_hops" || {
+    get-attr '@max-hops' && max_hops=$attr
+    test -n "$max_hops" ||
+        max_hops=5
     }
 
 main 2>/dev/null
@@ -71,7 +92,7 @@ NAME
     lock-route
 
 SYNOPSIS
-    radiosite.lock-route [tag]
+    radiosite.lock-route [--max-hops] [-h|--help] [tag]
 
 EXIT VALUES
     0 -- success
@@ -85,4 +106,7 @@ DESCRIPTION
 
     Lock files are named '@LOCK' and can be empty or contain a tag string
     provided as an argument.
+
+ATTRIBUTES
+    @max-hops -- maximum number of radio hops from base to site
 
