@@ -40,8 +40,6 @@ main () {
         tee < $base/\@session \@session | tob sessions.store
     tob $self.unlock-route --no-log $tag
     trap - EXIT TERM
-    ls -ltr
-    pwd
     printf "%ds to call %s via %s and path <%s>\n" $elapsed $tag $base "$repeaters" |
         tob log.store
     }

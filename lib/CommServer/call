@@ -3,6 +3,12 @@
 use strict;
 use warnings;
 
+open PID, '>', '.@pid' or warn $!;
+print PID $$, "\n";
+close PID or warn $!;
+
+$| = 1;
+
 use constant PROMPT => 'query: ';
 print PROMPT;
 
@@ -29,16 +35,16 @@ while ( <> ) { # read input from the client
 
     elsif ( m/^call\s+(.+)$/ ) { # load and call with query parameters
         my $site = $1;
+        $site =~ s/\r//;
 
         unless ( -e $site ) { # try alternate ways to resolve site
             if ( -e "_/$site" ) {
                 $site = '_/' . $site;
                 }
-            elsif ( -e "_/transition/$site" ) {
+            elsif ( $site = resolve_site($site) ) {
                 open TRANSITIONS, '>>', '@transitions' or warn $!;
                 print TRANSITIONS $site, "\n";
                 close TRANSITIONS or warn $!;
-                $site = '_/transition/' . $site;
                 }
             else {
                 open FAILED, '>>', '@failed' or warn $!;
@@ -48,9 +54,9 @@ while ( <> ) { # read input from the client
                 }
             }
 
-        exec "tob $site.call"
+        exec "/usr/local/bin/tob $site.call"
             if -d $site;
-        warn "site not found: $site\n";
+        die "site not found: $site\n";
         }
 
     else {
@@ -71,3 +77,16 @@ sub help_screen {
     
     }
 
+sub resolve_site {
+    my $site = shift;
+    return "_/transition/$site" if -e "_/transition/$site";
+    opendir TRANS, '_/transition/' or die $!;
+    foreach my $dir ( readdir TRANS ) {
+        next if $dir =~ m/^\./;
+        $dir = "_/transition/$dir";
+        next unless -d $dir && ! -l $dir;
+        return "$dir/$site" if -e "$dir/$site";
+        }
+    closedir TRANS or die $!;
+    return 0;
+    }

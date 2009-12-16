@@ -40,23 +40,22 @@ main () {
         test $m -gt 1 && mplural=s
         msg="$msg, missing $m lock$mplural:$nolock"
         }
-    echo $msg | tob log.store
+    test -n "$NOLOG" ||
+        echo $msg | tob log.store
     }
 
-test -n "$1" && {
-    tag=$1
+while test -n "$1"; do
+    tag=$1 && shift
     if test $tag == --no-log; then
+        unset tag
         NOLOG=1
-        shift
-        tag=$1
     elif test $tag == -h; then
         echo "$usage"
         exit 0
     elif test $tag == --help; then
         exec awk '/^NAME/{ok=1}ok{print}' $0  
     fi
-
-    }
+done
 
 main
 
