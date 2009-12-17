@@ -25,6 +25,9 @@ while ( $ARGV[0] =~ m/^-/ ) {
     my $opt = shift;
     if ( $opt eq '--prompt' ) {
         $prompt = shift;
+        $prompt =~ s/^\\//;
+        warn "PROMPT length :" . length $prompt . "\n";
+        warn sprintf "PROMPT:%s\n", "$prompt";
         }
     elsif ( $opt eq '--tag' ) {
         $tag = shift;
@@ -37,9 +40,7 @@ while ( $ARGV[0] =~ m/^-/ ) {
         }
     }
 
-open PID, '>', '.@pid' or warn $!;
-print PID $$, "\n";
-close PID or warn $!;
+set_property( '.@pid', $$ );
 
 my $radio = shift;
 $radio = check_radio_number($radio)
@@ -64,9 +65,9 @@ foreach my $node ( @route ) {
 
 # ASSERT: all locks exist and contain the $tag if given
 
-open TAG, '>', '@tag' or warn $!;
-print TAG $tag, "\n";
-close TAG or warn $!;
+set_property( '@tag', $tag );
+
+set_property( '@state', 'init');
 
 my ($host, $port);
 foreach ( file_contents("\%ip2radio") ) {
@@ -121,6 +122,8 @@ $exp->log_stdout(0); ## 0=supress, 1=copy process output to stdout
 
 $exp->log_file( '@radio-config-log', 'w');
 
+set_property( '@state', '>base?');
+
 my @nc_options = ();
 
 if ( $host =~ m/^http:.+/ ) { # special case: URL contains dynamic ip
@@ -145,6 +148,8 @@ $timeout = file_contents('@timeout-config-phase')
 
 ## send a couple of escapes in case radio is left in config mode...
 $exp->send("\e\e");
+
+set_property( '@state', 'config');
 
 ## ASSERT: radio should be in command mode
 
@@ -257,6 +262,8 @@ log_steps("ready to dial target radio with $dial_string");
 
 $time_ready2dial = time;
 
+set_property( '@state', 'dial');
+
 $rep_path = '' unless $rep_path; # for output...
 push @call_summary, $dial_string, $entry_type, $rep_path;
 
@@ -268,6 +275,8 @@ log_steps("saw 'OK'");
 $exp->expect($timeout, "CONNECT")  # first radio (target or repeater) reached
     or timed_out('no "CONNECT" response');
 log_steps("saw 'CONNECT'");
+
+set_property( '@state', '<prompt?');
 
 my $see_target;
 if ( $prompt ) {
@@ -295,6 +304,7 @@ if ( $see_target ) {
     log_steps("saw target prompt, sending 'CONNECTED' to client");
     print "CONNECTED\r\n";
     push @call_summary, 'ok';
+    set_property( '@state', 'prompt!');
     }
 else {
     log_steps("no target prompt, sending 'NO_PROMPT_SEEN' to client");
@@ -302,6 +312,7 @@ else {
     log_steps("quitting");
     push @call_summary, 'no';
     log_call_summary();
+    set_property( '@state', 'failed');
     die "bye!\n";
     }
 
@@ -318,10 +329,14 @@ unlink '@session'
 symlink "sessions/\@$tag", '@session'
     or warn "failed to set symlink to sessions/\@$tag\n";
 
+set_property( '@state', '>...<');
+
 $exp->interact(\*STDIN, 'BAIL!');
 # $exp->interact();
 
 log_steps("client has terminated connection");
+
+set_property( '@state', 'done');
 
 log_call_summary();
 
@@ -349,6 +364,7 @@ sub timed_out {
     log_steps("expect() timed out: $msg");
     print "ABORTING CONNECTION\r\n";
     $exp->send("\e\e"); # send escapes in case in radio setup mode
+    set_property( '@state', 'timeout');
     die qq(expect() timed out: $msg\n);
     }
 
@@ -374,5 +390,16 @@ sub file_contents {
     close FILE or die $!;
     return $content[0] if scalar @content == 1;
     return @content;
+    }
+
+sub set_property {
+    my $prop = shift;
+    my $string = shift;
+    if ( open PROP, '>', $prop ) {
+        print PROP $string, "\n";
+        return close PROP;
+        }
+    warn "$prop not set to $string; $!\n";
+    return 0;
     }
 
