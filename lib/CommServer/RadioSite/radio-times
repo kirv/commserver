@@ -1,0 +1,85 @@
+#!/bin/bash
+
+self=.
+
+synopsis="radio-times [--on MINUTES] [--off MINUTES] [set|check]"
+
+unset on_at
+unset off_at
+
+set-on-minutes () {
+    minutes="$1"
+    tob radio-power.cron-add --minute $minutes touch state=ON
+    tob $self.touch radio-ON=$minutes
+    }
+
+set-off-minutes () {
+    minutes="$1"
+    tob radio-power.cron-add --minute $minutes rm state=ON
+    tob $self.touch radio-OFF=$minutes
+    }
+
+show-settings () {
+    tob radio-power.cron-job
+    }
+
+while test "${1:0:1}" == '-'; do
+    opt=$1 && shift
+    if test "$opt" == --on; then
+        on_at="$1" && shift
+    elif test $opt == --off; then
+        off_at="$1" && shift
+    else
+        echo bad option: $opt >&2
+        exit 2
+    fi
+done
+
+action=check
+test -n "$1" &&
+    action=$1
+
+case $action in
+    check)
+        show-settings
+        ;;
+    set)
+        test -n "$on_at" &&
+            set-on-minutes "$on_at"
+        test -n "$off_at" &&
+            set-off-minutes "$off_at"
+        echo set radio times: on=$on_at, off=$off_at |
+            tob log.store
+        ;;
+    *)
+        echo unknown action: $action >&2
+        exit 2
+        ;;
+esac
+        
+exit 0
+
+NAME
+    radio-times -- set or check radio on & off times settings
+
+SYNOPSIS
+    radio-times [--on MINUTES] [--off MINUTES] [set|check]
+
+DESCRIPTION
+    The RadioSite object should contain a Cron object named .radio-power,
+    and a symlink to .radio-power/state-ON named radio-power.  The cron
+    object is set to make crontab entries for the argument times, touching
+    and removing the property state=ON to represent the site radio's state.
+
+    Currently the radio-power object is contained in the site object.  In
+    future, though, it would be better if the site object itself could
+    inherit from Cron, but this requires a 'mixin' approach, not yet 
+    implemented in the thinobject system.
+    
+EXIT STATUS
+    1 -- some error
+    2 -- bad option or action argument
+
+AUTHOR
+    ken.irving@alaska.edu (c) 2009
+
