@@ -6,14 +6,16 @@ set -o noclobber
 
 lock_route () {
     for node in "$@"; do
-        >$node/@LOCK || {
-            test -n "$locks" && rm $locks
-            unset locks
-            return 1
+        test -e $node/radio-power && >$node/@LOCK && {
+            test -n "$tag" &&
+                 echo $tag >| $node/@LOCK
+            locks="$locks $node/@LOCK"
+            continue
             }
-        test -n "$tag" &&
-             echo $tag >| $node/@LOCK
-        locks="$locks $node/@LOCK"
+        # a test failed, so remove locks and bail:
+        test -n "$locks" && rm $locks
+        unset locks
+        return 1
     done
     return 0
     }
@@ -43,6 +45,7 @@ get-attr () {
     }
 
 main () {
+    test -e radio-power || exit 3
     if test -n "$tag"; then
         printf "$tag" >\@LOCK || exit 1
     else
@@ -56,7 +59,6 @@ main () {
         lock_route ${route[@]} && break
         n=$(($n + 1))
     done < @routes
-    
     test -n "$locks" || {
         # no routes were found
         rm @LOCK
@@ -98,6 +100,7 @@ EXIT VALUES
     0 -- success
     1 -- target object already locked
     2 -- no route found
+    3 -- site radio is not powered
 
 DESCRIPTION
     Assumes @routes list exists and is ordered. Finds a route from

@@ -15,7 +15,7 @@ get-attr () {
 
 main () {
     tag=${TOB_object##*[./]}
-    tob $self.lock-route $tag || exit 2
+    tob $self.lock-route $tag || exit
     trap "tob $self.unlock-route" EXIT TERM
     route=$(<@LOCK)
     base=${route%% *}
@@ -53,6 +53,7 @@ EXIT VALUES
     0 -- success
     1 -- some failure occurred
     2 -- failed, no route to site
+    3 -- site radio is not powered
 
 DESCRIPTION
     Invoke lock-route to secure a route, then invoke the call method on the
