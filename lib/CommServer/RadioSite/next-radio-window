@@ -1,0 +1,87 @@
+#!/bin/bash
+
+self=.
+
+synopsis="next-radio-window [--gt MINUTES]"
+
+get-attr () {
+    attr=$1 
+    for path in ${TOB_search_paths//:/ }; do
+        for tagval in $path/$attr=*; do
+            # this actually gets just the last value if multiple exist:
+            attr=${tagval#*=}
+        done && return 0
+        test -e $path/\@$attr && {
+            attr=$(<$path/\@$attr)
+            return 0
+            }
+    done
+    return 1
+    }
+
+while test "${1:0:1}" == '-'; do
+    opt=$1 && shift
+    if test "$opt" == --gt; then
+        skip_min="$1" && shift
+    elif test "$opt" == --lt; then
+        skip_max="$1" && shift
+    else
+        echo bad option: $opt >&2
+        exit 2
+    fi
+done
+
+get-attr radio-ON && ontime=(${attr//,/ })
+get-attr radio-OFF && offtime=(${attr//,/ })
+now=$(date +%M)
+
+echo "ON=<${ontime[@]}>, OFF=<${offtime[@]}>, NOW=$now"
+        
+for t in "${ontime[@]}"; do
+    echo $t
+done
+
+unset t
+i=0
+for on in "${ontime[@]}"; do
+    onoff[$i]=$on
+    t=$on
+    unset ontime[$i]
+    i=$(($i + 1))
+    j=0
+    for off in "${offtime[@]}"; do
+        test $off -ge $t && {
+            onoff[$i]=$off
+            }
+    done
+done
+
+onoff[0]=(${ontime[0]})
+unset ontime[0]
+i=1
+j=0
+while test $i -le ${#ontime[@]}; do
+
+done
+
+exit 0
+
+NAME
+    next-radio-window -- show minutes until and duration of radio on-time
+
+SYNOPSIS
+    radio-times [--gt MINUTES] [--lt MINUTES]
+
+DESCRIPTION
+    Radio on-times are stored in attributes radio-ON=LIST and radio-OFF=LIST,
+    where LIST is one or more integers between 0 and 59, representing minutes
+    after the hour.
+
+EXIT STATUS
+    1 -- some error
+    2 -- bad option or action argument
+
+AUTHOR
+    ken.irving@alaska.edu (c) 2009
+
+

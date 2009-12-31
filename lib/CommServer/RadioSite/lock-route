@@ -35,7 +35,7 @@ log-route () {
 get-attr () {
     attr=$1
     unset value
-    for path in ${TOB_attribute_search_paths//:/ }; do
+    for path in ${TOB_search_paths//:/ }; do
         test -e $path/$attr && {
             attr=$(<$path/$attr)
             return 0
