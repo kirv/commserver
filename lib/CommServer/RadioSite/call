@@ -2,17 +2,6 @@
 
 self=.
 
-get-attr () {
-    attr=$1
-    unset value
-    for path in ${TOB_search_paths//:/ }; do
-        test -e $path/$attr && {
-            value=$(<$path/$attr)
-            return 0
-            }
-    done
-    }
-
 main () {
     tag=${TOB_object##*[./]}
     tob $self.lock-route $tag || exit
@@ -28,8 +17,8 @@ main () {
         }
     radio=$(<@radio)
     options=( --tag "$tag" )
-    get-attr \@prompt && options=( "${options[@]}" --prompt $value )
-    get-attr \@retries && options=( "${options[@]}" --retries $value )
+    TOB_get_attr \@prompt && options=( "${options[@]}" --prompt $attr )
+    TOB_get_attr \@retries && options=( "${options[@]}" --retries $attr )
     t0=$(date +%s)
     echo tob $base.call "${options[@]}" $radio $repeaters
     tob $base.call "${options[@]}" $radio $repeaters

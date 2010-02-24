@@ -31,7 +31,7 @@ test -e %ip2radio && {
 
 ## stop following links if link count exceeds max-hops limit
 test -n "$max_hops" ||
-    get-attr @max-hops && max_hops=$attr
+    TOB_get_attr @max-hops && max_hops=$attr
 test $# -le $max_hops ||
     exit 0
 

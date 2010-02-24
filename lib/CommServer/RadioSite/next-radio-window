@@ -4,21 +4,6 @@ self=.
 
 synopsis="next-radio-window [--gt MINUTES]"
 
-get-attr () {
-    attr=$1 
-    for path in ${TOB_search_paths//:/ }; do
-        for tagval in $path/$attr=*; do
-            # this actually gets just the last value if multiple exist:
-            attr=${tagval#*=}
-        done && return 0
-        test -e $path/\@$attr && {
-            attr=$(<$path/\@$attr)
-            return 0
-            }
-    done
-    return 1
-    }
-
 while test "${1:0:1}" == '-'; do
     opt=$1 && shift
     if test "$opt" == --gt; then
@@ -31,8 +16,8 @@ while test "${1:0:1}" == '-'; do
     fi
 done
 
-get-attr radio-ON && ontime=(${attr//,/ })
-get-attr radio-OFF && offtime=(${attr//,/ })
+TOB_get_attr radio-ON && ontime=(${attr//,/ })
+TOB_get_attr radio-OFF && offtime=(${attr//,/ })
 now=$(date +%M)
 
 echo "ON=<${ontime[@]}>, OFF=<${offtime[@]}>, NOW=$now"

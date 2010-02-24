@@ -32,18 +32,6 @@ log-route () {
     fi
     }
 
-get-attr () {
-    attr=$1
-    unset value
-    for path in ${TOB_search_paths//:/ }; do
-        test -e $path/$attr && {
-            attr=$(<$path/$attr)
-            return 0
-            }
-    done
-    return 1
-    }
-
 main () {
     test -e radio-power || exit 3
     if test -n "$tag"; then
@@ -81,7 +69,7 @@ while test -n "$1"; do
 done
 
 test -n "$max_hops" || {
-    get-attr '@max-hops' && max_hops=$attr
+    TOB_get_attr '@max-hops' && max_hops=$attr
     test -n "$max_hops" ||
         max_hops=5
     }
