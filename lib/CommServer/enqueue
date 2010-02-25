@@ -1,51 +1,145 @@
-#!/usr/bin/perl
-# !/usr/bin/perl -w
-use strict;
-use warnings;
+#!/bin/bash
 
-$| = 1;
+error() { echo "$@" >&2 && exit 1; }
 
-use constant PROMPT => 'query: ';
-print PROMPT;
+spool=.q-spool
+test -d $spool || mkdir $spool
 
-while ( <> ) { # read input from the client
-    chomp;
-    s/\r//;
+# default values for options:
+timeout=60
+delay=0
 
-    if ( m/^\s*$/ ) { } # skip blank lines 
+while read -a query -p 'query: '; do
+    cmd=$query
+    unset query[0]
+    case $cmd in
 
-    elsif ( m/^\s*#/ ) { } # skip comment lines
+        call)   site=${query[1]}
+                unset query[1]
+                break
+                ;;
 
-    elsif ( m/^h(elp)?$/i ) { # action command
-        help_screen();
-        }
+        ls)     ls "${query[@]}"
+                ;;
 
-    elsif ( m/^q(uit)?$/i ) { # action command
-        print "goodbye!\n";
-        exit 0;
-        }
+        q|quit) echo goodbye!
+                exit 0
+                ;;
 
-    elsif ( m/^call\s+(.+)$/ ) { # load and call with query parameters
-        my $site = $1;
-        $site =~ s/\r//;
-        die "unable to resolve $site\n" unless -d $site;
-        exec "/usr/local/bin/tob $site.call";
-        }
+        h)      printf "    %s\n" \
+                    'call SITE [OPTIONS] -- check, then queue site to call' \
+                    'ls                 -- list commserver object contents' \
+                    'q|quit             -- exit' \
+                    'h                  -- show short help' \
+                    'help               -- show man page'
+                ;;
 
-    else {
-        print "unknown query: $_, try:\n";
-        help_screen();
-        }
-    print PROMPT;
+        help)   awk '/^NAME$/{ok=1}ok{print}' $0
+                ;;
+
+        *)      printf "\a?\n"
+                ;;
+
+    esac
+done
+
+# echo call $site with args: "${query[@]}" 
+test -d $site || error no site: $site
+
+i=2 # skip entries 0 ('call' command) and 1 (the site)
+while test -n "${query[$i]}"; do
+    case ${query[$i]} in
+        --notify)
+            notify=1
+            ;;
+
+        --priority)
+            i=$(($i+1))
+            priority=${query[$i]}
+            ;;
+
+        --timeout)
+            i=$(($i+1))
+            timeout=${query[$i]}
+            ;;
+
+        --delay)
+            i=$(($i+1))
+            delay=${query[$i]}
+            ;;
+
+        *)  error unknown option: ${query[$i]}
+            ;;
+    esac
+    i=$(($i+1))
+done
+
+# create queue object in spool, set link to site object:
+test -d $spool/$site && error site $site is already queued
+mkdir $spool/$site
+cd $spool/$site
+
+ln -s ../../$site _
+
+test -n "$notify" && touch NOTIFY
+
+test -n "$priority" && touch PRIORITY=$priority
+
+test -n "$delay" && test $delay -gt 0 && {
+    future=$(($(date +%s)+$delay))
+    touch -d @$future DELAY
     }
 
-exit 0;
+test -n "$timeout" || error missing required timeout value
+# TODO: check that $timeout and $delay are integer values!!
+future=$(($(date +%s)+$delay+$timeout))
+touch -d @$future TIMEOUT
 
-sub help_screen {
-    print << "    END_HELP";
-    help -- display this message
-    quit -- close down session
-    call -- call specified site
-    END_HELP
-    }
+exit 0
+
+NAME
+    CommServer.enqueue -- dialog to queue a site to call
+
+DESCRIPTION
+    Adds the specified site to the queue spool, then runs the
+    pick-site-to-call method which moves the site from the spool into
+    the queue.
+
+COMMANDS
+    Enter one of the following at the 'query:' prompt:
+
+    call SITE [--notify] [--priority NUMBER] [--timeout SECONDS] [--delay SECONDS]
+        check that site exists, create queue object in spool
+        see SITE OPTIONS below
+
+    ls [...]
+        list contents of commserver object
+
+    q
+    quit
+        exit with status 0
+
+    h
+        show brief synopsis
+
+    help
+        show manpage
+
+SITE OPTIONS
+    --notify
+        after site is chosen and a route locked, don't initiate connection
+        but notify client that a connection can be made
+    
+    --priority NUMBER
+        optional priority number to favor one site over another; no default
+    
+    --timeout SECONDS
+        specify how long attempt to call should persist in queue
+        default is 60 seconds
+    
+    --delay SECONDS
+        specify how long to leave site in the queue spool; no default
+    
+AUTHOR
+    Ken.Irving@alaska.edu 2010
 
