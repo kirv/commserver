@@ -1,51 +1,77 @@
-#!/usr/bin/perl
-# !/usr/bin/perl -w
-use strict;
-use warnings;
+#!/bin/bash
 
-$| = 1;
+error() { echo "$@" >&2 && exit 1; }
 
-use constant PROMPT => 'query: ';
-print PROMPT;
+queue=.q
+spool=.q-spool
+test -d $spool && test -d $queue || error CommSite object not initialized
 
-while ( <> ) { # read input from the client
-    chomp;
-    s/\r//;
+while -n "$1"; do
+    arg=$1 && shift
+    case $arg in
 
-    if ( m/^\s*$/ ) { } # skip blank lines 
+        h)      echo SYNOPSIS: commserver.pick-site-to-call [-h|--help]
+                ;;
 
-    elsif ( m/^\s*#/ ) { } # skip comment lines
+        help)   awk '/^NAME$/{ok=1}ok{print}' $0
+                ;;
 
-    elsif ( m/^h(elp)?$/i ) { # action command
-        help_screen();
-        }
+        *)      error unknown argument: $arg
+                ;;
+    esac
+done
 
-    elsif ( m/^q(uit)?$/i ) { # action command
-        print "goodbye!\n";
-        exit 0;
-        }
+touch .NOW
 
-    elsif ( m/^call\s+(.+)$/ ) { # load and call with query parameters
-        my $site = $1;
-        $site =~ s/\r//;
-        die "unable to resolve $site\n" unless -d $site;
-        exec "/usr/local/bin/tob $site.call";
-        }
+# process spool for queue, moving sites into queue unless delay 
+for site in .q-spool/*; do
+    # leave site in spool if also in queue:
+    test -e $q/${site#*/} && continue
 
-    else {
-        print "unknown query: $_, try:\n";
-        help_screen();
-        }
-    print PROMPT;
-    }
+    # move site into queue if no delay attribute:
+    test -e $site/q-DELAY || mv $site $q && continue
 
-exit 0;
+    # move site into queue if delay has expired:
+    test $site/q-DELAY -nt .NOW || mv $site $q && continue
+done
 
-sub help_screen {
-    print << "    END_HELP";
-    help -- display this message
-    quit -- close down session
-    call -- call specified site
-    END_HELP
-    }
+# process queue...
+
+for site in .q/*; do
+
+    # remove site from queue if timeout has elapsed:
+    test $site/q-TIMEOUT -nt .NOW || rm $site && continue
+
+done
+exit 0
+
+NAME
+    CommServer.pick-site-to-call -- process call queue spool and queue
+
+DESCRIPTION
+    The goal is to select a site to call after weighing various metrics,
+    including time since last contact, caller-assigned priority, availability
+    cost of routes, and perhaps others.
+
+    The CommServer.call method provides the caller interface to this method,
+    creating an object in the queue spool.  This method moves objects from
+    the spool into the queue, unless the optional delay interval has not 
+    elapsed.
+
+    Each object in the queue is evaluated along with the others, and one
+    chosen...
+
+    Objects are removed from the queue if the timeout period has elapsed.
+
+IMPLEMENTATION NOTES
+    The queue is a form of priority queue, where the effective priority
+    metric is not fully defined on entry to the queue, but also depends
+    dynamically with availability and cost of routing nodes and on other
+    factors.
+
+OPTIONS
+    
+AUTHOR
+    Ken.Irving@alaska.edu 2010
+
 

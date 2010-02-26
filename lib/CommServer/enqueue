@@ -3,7 +3,7 @@
 error() { echo "$@" >&2 && exit 1; }
 
 spool=.q-spool
-test -d $spool || mkdir $spool
+test -d $spool || error CommSite object not initialized
 
 # default values for options:
 timeout=60
@@ -74,26 +74,32 @@ while test -n "${query[$i]}"; do
     i=$(($i+1))
 done
 
-# create queue object in spool, set link to site object:
-test -d $spool/$site && error site $site is already queued
-mkdir $spool/$site
-cd $spool/$site
+# create tag as short form of site name, in case it spans directories:
+tag=${site##*/}
 
-ln -s ../../$site _
+test -d $spool/$tag && error site $site is already queued
 
-test -n "$notify" && touch NOTIFY
+# set link to site object in spool:
 
-test -n "$priority" && touch PRIORITY=$priority
+ln -s ../$site $spool/$tag
 
+# delete all queue attributes, with prefix 'q-':
+rm $spool/$tag/q-*
+
+test -n "$notify" && touch $spool/$tag/q-NOTIFY
+
+test -n "$priority" && touch $spool/$tag/q-PRIORITY=$priority
+
+now=$(date +%s)
 test -n "$delay" && test $delay -gt 0 && {
-    future=$(($(date +%s)+$delay))
-    touch -d @$future DELAY
+    future=$(($now+$delay))
+    touch -d @$future $spool/$tag/q-DELAY
     }
 
 test -n "$timeout" || error missing required timeout value
 # TODO: check that $timeout and $delay are integer values!!
-future=$(($(date +%s)+$delay+$timeout))
-touch -d @$future TIMEOUT
+future=$(($now+$delay+$timeout))
+touch -d @$future $spool/$tag/q-TIMEOUT
 
 exit 0
 
