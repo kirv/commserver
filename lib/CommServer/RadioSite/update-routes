@@ -12,6 +12,7 @@ test -n "$1" || {
     echo update routes n=$(wc -l < @routes) tm=$tm |
         tob log.store
     tob $self.rank-routes
+    awk 'NR==1{print NF}' @routes > @min-hops
     exit 
     }
 

@@ -9,19 +9,14 @@ test -d $spool && test -d $queue || error CommSite object not initialized
 while -n "$1"; do
     arg=$1 && shift
     case $arg in
-
-        h)      echo SYNOPSIS: commserver.pick-site-to-call [-h|--help]
-                ;;
-
-        help)   awk '/^NAME$/{ok=1}ok{print}' $0
-                ;;
-
-        *)      error unknown argument: $arg
-                ;;
+        h)      echo SYNOPSIS: commserver.pick-site-to-call [-h|--help] ;;
+        help)   awk '/^NAME$/{ok=1}ok{print}' $0 ;;
+        *)      error unknown argument: $arg ;;
     esac
 done
 
-touch .NOW
+date +%s > .NOW
+now=$(<.NOW)
 
 # process spool for queue, moving sites into queue unless delay 
 for site in .q-spool/*; do
@@ -37,12 +32,46 @@ done
 
 # process queue...
 
+unset choices
 for site in .q/*; do
 
     # remove site from queue if timeout has elapsed:
     test $site/q-TIMEOUT -nt .NOW || rm $site && continue
 
+    # aquire a route or skip this site:
+    $tob $site.lock-route || continue
+
+    # save, then release locked route
+    route=( $(<$site/@LOCK) )
+    $tob $site.unlock-route
+
+    # calculate one or more metrics based on the route...
+
+    # metric for number of hops over minimum:
+    min_hops=1
+    test -e @min-hops && min_hops=$(<@min-hops)
+    extra_hops=$(( (${#route[@]} - $min_hops) * 10 ))
+
+    # age is time in seconds since last successful session:
+    unset age
+  # test -e $site/@session &&
+  #     age=$(($now - $(stat -c %Y $site/@session)))
+    test -e @last-session-end-time &&
+        age=$(($now - $(<@last-session-end-time)))
+    # convert age to crude/approximate logarithmic value:
+    age=$(( (${#age} - 1)* 10 + ${age:0:1} ))
+
+    sum=$(( $age - $extra_hops ))
+    choices="$choices $sum-$site"
 done
+
+# now sort choices and select the one with the greatest value:
+choice=$(printf "%s\n" $choices | sort -n | tail -n 1)
+
+site=${choice#*-}
+
+
+
 exit 0
 
 NAME
@@ -68,6 +97,9 @@ IMPLEMENTATION NOTES
     metric is not fully defined on entry to the queue, but also depends
     dynamically with availability and cost of routing nodes and on other
     factors.
+
+    The age in seconds is converted to something like a logarithm in base
+    10 by concatenating the number of digits minus 1 and the first digit.
 
 OPTIONS
     
