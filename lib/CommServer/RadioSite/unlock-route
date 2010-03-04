@@ -73,3 +73,7 @@ EXIT VALUES
 DESCRIPTION
     The file @LOCK contains the route to reach the object node,
     while the @LOCK files in the route nodes are empty.
+
+AUTHOR
+    ken.irving@alaska.edu 2010
+

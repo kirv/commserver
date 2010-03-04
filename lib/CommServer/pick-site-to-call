@@ -1,12 +1,14 @@
 #!/bin/bash
 
+tob=/usr/local/bin/tob
+
 error() { echo "$@" >&2 && exit 1; }
 
 queue=.q
 spool=.q-spool
 test -d $spool && test -d $queue || error CommSite object not initialized
 
-while -n "$1"; do
+while test -n "$1"; do
     arg=$1 && shift
     case $arg in
         h)      echo SYNOPSIS: commserver.pick-site-to-call [-h|--help] ;;
@@ -20,59 +22,122 @@ now=$(<.NOW)
 
 # process spool for queue, moving sites into queue unless delay 
 for site in .q-spool/*; do
+
+    echo spooled: $site
+
+    test "${site##*/}" == '*' && break
+
     # leave site in spool if also in queue:
-    test -e $q/${site#*/} && continue
+    test -e $queue/${site#*/} && continue
 
     # move site into queue if no delay attribute:
-    test -e $site/q-DELAY || mv $site $q && continue
+    test -e $site/q-DELAY || {
+        mv $site $queue && continue
+        }
 
     # move site into queue if delay has expired:
-    test $site/q-DELAY -nt .NOW || mv $site $q && continue
+    test $site/q-DELAY -nt .NOW || {
+        mv $site $queue && continue
+        }
 done
 
 # process queue...
 
+test -e .@random-modulus && rndmod=$(<.@random-modulus)
+rndofs=0
+test -e .@random-offset && rndofs=$(<.@random-offset)
+
+ls -l .NOW
+
 unset choices
-for site in .q/*; do
+for site in $queue/*; do
+
+    echo queued: $site
+
+    test "${site#*/}" == '*' && exit 
 
     # remove site from queue if timeout has elapsed:
-    test $site/q-TIMEOUT -nt .NOW || rm $site && continue
+    test $site/q-TIMEOUT -nt .NOW || {
+        touch $site/q-FAILED
+        rm $site && continue
+        }
 
+    # workaround bug that .q/site.foo has to be .q.site.foo:
+    tsite=${site/\//.}
     # aquire a route or skip this site:
-    $tob $site.lock-route || continue
+    echo $tob $tsite.lock-route OR continue
+    $tob $tsite.lock-route || continue
 
     # save, then release locked route
     route=( $(<$site/@LOCK) )
-    $tob $site.unlock-route
+    echo route: "${route[@]}"
+    echo $tob $tsite.unlock-route
+    $tob $tsite.unlock-route
 
     # calculate one or more metrics based on the route...
 
+    echo metrics...
+
     # metric for number of hops over minimum:
     min_hops=1
-    test -e @min-hops && min_hops=$(<@min-hops)
+    test -e $site/@min-hops && min_hops=$(<$site/@min-hops)
     extra_hops=$(( (${#route[@]} - $min_hops) * 10 ))
 
     # age is time in seconds since last successful session:
-    unset age
+    age=0
   # test -e $site/@session &&
   #     age=$(($now - $(stat -c %Y $site/@session)))
-    test -e @last-session-end-time &&
-        age=$(($now - $(<@last-session-end-time)))
+    test -e $site/@last-session-end-time &&
+        age=$(($now - $(<$site/@last-session-end-time)))
     # convert age to crude/approximate logarithmic value:
     age=$(( (${#age} - 1)* 10 + ${age:0:1} ))
 
     sum=$(( $age - $extra_hops ))
+
+    test -e $site/q-PRIORITY && 
+        sum=$(( $sum + $(<$site/q-PRIORITY) ))
+
+    test -n "$rndmod" &&
+        sum=$(( $sum + $RANDOM % $rndmod + $rndofs ))
+
     choices="$choices $sum-$site"
 done
+
+echo choices: {$choices}
+test -n "$choices" || exit
 
 # now sort choices and select the one with the greatest value:
 choice=$(printf "%s\n" $choices | sort -n | tail -n 1)
 
+echo choice: {$choice}
+
 site=${choice#*-}
+tsite=${site/\//.}
 
+echo site: {$site}
+echo tsite: {$tsite}
 
+$tob $tsite.lock-route || {
+    # this should have worked, but just bail and hope for better luck...
+    echo failed to aquire route to $site... >&2
+    sleep 1
+    echo exec $0
+    } 
 
-exit 0
+# ASSERT: the route to $site is locked, ready to go!
+
+# should maybe check that this route is the same as the one checked above? Nah.
+
+touch $site/q-PASSED
+
+# remove site from queue:
+rm $site || error failed to dequeue $site...
+
+# delay a bit, then start over...
+sleep 1
+echo exec $0
+
+exit
 
 NAME
     CommServer.pick-site-to-call -- process call queue spool and queue

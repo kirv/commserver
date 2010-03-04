@@ -1,106 +1,185 @@
-#!/usr/bin/perl
-# !/usr/bin/perl -w
-use strict;
-use warnings;
+#!/bin/bash
 
-open PID, '>', '.@pid' or warn $!;
-print PID $$, "\n";
-close PID or warn $!;
+error() { echo "$@" >&2; exit 1; }
 
-$| = 1;
+spool=.q-spool
+test -d $spool || error CommSite object not initialized
 
-use constant PROMPT => 'query: ';
-print PROMPT;
+# default values for options:
+timeout=60
+delay=0
 
-while ( <> ) { # read input from the client
-    chomp;
-    s/\r//;
+query=( call "$@" )
+unset query[0]
+# skip dialog if any arguments are present on command line:
+test -n "$1" || while read -a query -p 'query: '; do
+    cmd=$query
+    unset query[0]
+    case $cmd in
 
-    if ( m/^\s*$/ ) { } # skip blank lines 
+        call)   break
+                ;;
 
-    elsif ( m/^\s*#/ ) { } # skip comment lines
+        ls)     ls "${query[@]}"
+                ;;
 
-    elsif ( m/^h(elp)?$/i ) { # action command
-        help_screen();
-        }
+        q|quit) echo goodbye!
+                exit 0
+                ;;
 
-    elsif ( m/^q(uit)?$/i ) { # action command
-        print "goodbye!\n";
-        exit 0;
-        }
+        h)      printf "    %s\n" \
+                    'call SITE [OPTIONS] -- check, then queue site to call' \
+                    'ls                 -- list commserver object contents' \
+                    'q|quit             -- exit' \
+                    'h                  -- show short help' \
+                    'help               -- show man page'
+                ;;
 
-    elsif ( m/^list\s*(.*)?$/i ) { # list sites command
-        system "ls $1";
-        }
+        help)   awk '/^NAME$/{ok=1}ok{print}' $0
+                ;;
 
-    elsif ( m/^call\s+(.+)$/ ) { # load and call with query parameters
-        my $site = $1;
-        $site =~ s/\r//;
+        *)      printf "\a?\n"
+                ;;
 
-        unless ( -d $site ) { # try alternate ways to resolve site
-            if ( -d "_/$site" ) {
-                $site = "_/$site";
-                }
-            else {
-                $site = resolve_site_or_die($site);
-                }
-            }
+    esac
+done
 
-        exec "/usr/local/bin/tob $site.call";
-        }
+site=${query[1]}
+unset query[1]
 
-    else {
-        print "unknown query: $_, try:\n";
-        help_screen();
-        }
-    print PROMPT;
+# echo call $site with args: "${query[@]}" 
+test -d $site || error no site: $site
+
+echo 1 $site
+
+i=2 # skip entries 0 ('call' command) and 1 (the site)
+while test -n "${query[$i]}"; do
+    case ${query[$i]} in
+        --notify)
+            notify=1
+            ;;
+
+        --priority)
+            i=$(($i+1))
+            priority=${query[$i]}
+            ;;
+
+        --timeout)
+            i=$(($i+1))
+            timeout=${query[$i]}
+            ;;
+
+        --delay)
+            i=$(($i+1))
+            delay=${query[$i]}
+            ;;
+
+        *)  error unknown option: ${query[$i]}
+            ;;
+    esac
+    i=$(($i+1))
+done
+
+# create tag as short form of site name, in case it spans directories:
+tag=${site##*/}
+
+echo 2 $tag
+
+# check that the site isn't already in the spool or queue:
+test -d $spool/$tag && error site $site is already spooled
+test -d $queue/$tag && error site $site is already queued
+
+# now set attributes in the site object for the spool and queue operations:
+
+# delete any existing queue attributes, with prefix 'q-':
+rm $site/q-*
+
+now=$(date +%s)
+test -n "$delay" && test $delay -gt 0 && {
+    future=$(($now+$delay))
+    touch -d @$future $site/q-DELAY
     }
 
-exit 0;
+test -n "$timeout" || error missing required timeout value
+# TODO: check that $timeout and $delay are integer values!!
+future=$(($now+$delay+$timeout))
+touch -d @$future $site/q-TIMEOUT
 
-sub help_screen {
-    print << "    END_HELP";
-    list -- list all sites
-    help -- display this message
-    quit -- close down session
-    call -- call specified site
-    END_HELP
+test -n "$priority" && touch $site/q-PRIORITY=$priority
+
+# now set link to site object in spool:
+ln -s ../$site $spool/$tag
+
+# and wait for the queue manager to give a go or no-go:
+until test -e $site/q-PASSED -o -e $site/q-FAILED; do
+    sleep 1
+done
+
+test -e $site/q-FAILED && exit 1
+
+test -e $site/q-PASSED || error should not happen
+
+test -n "$notify" && {
+    echo ready to call $site
+    exit 0
     }
 
-sub resolve_site_or_die {
-    my $site = shift;
-    if ( -d "_/transition/$site" ) {
-        log_transition($site, "_/transition/$site");
-        return "_/transition/$site";
-        }
-    opendir TRANS, '_/transition/' or die $!;
-    foreach my $dir ( readdir TRANS ) {
-        next if $dir =~ m/^\./;
-        $dir = "_/transition/$dir";
-        next unless -d $dir && ! -l $dir;
-        if ( -d "$dir/$site" ) {
-            log_transition($site, "$dir/$site");
-            return "$dir/$site";
-            }
-        }
-    closedir TRANS or die $!;
-    # the site was not found, so log the attempt then quit with error:
-    my $timestamp = `/bin/date --iso=minutes`;
-    chomp $timestamp;
-    open FAILED, '>>', '@failed' or warn $!;
-    print FAILED "$site $timestamp\n";
-    close FAILED or warn $!;
-    die "unable to resolve $site\n";
-    }
+exec /usr/local/bin/tob $site.call
 
-sub log_transition {
-    my $called = shift;
-    my $alternate = shift;
-    # The site was resolved through _/transition/, which is a 
-    #   temporary means to catch clients using the wrong name.
-    my $timestamp = `/bin/date --iso=minutes`;
-    chomp $timestamp;
-    open TRANSITIONS, '>>', '@transitions' or warn $!;
-    print TRANSITIONS "$called $alternate $timestamp\n";
-    close TRANSITIONS or warn $!;
-    }
+exit 0
+
+NAME
+    CommServer.call -- dialog to queue a site to call
+
+DESCRIPTION
+    Adds the specified site to the queue spool, then runs the
+    pick-site-to-call method which moves the site from the spool into
+    the queue.
+
+COMMANDS
+    Enter one of the following at the 'query:' prompt:
+
+    call SITE [--notify] [--priority NUMBER] [--timeout SECONDS] [--delay SECONDS]
+        check that site exists, create queue object in spool
+        see SITE OPTIONS below
+
+    ls [...]
+        list contents of commserver object
+
+    q
+    quit
+        exit with status 0
+
+    h
+        show brief synopsis
+
+    help
+        show manpage
+
+SITE OPTIONS
+    --notify
+        after site is chosen and a route locked, don't initiate connection
+        but notify client that a connection can be made
+    
+    --priority NUMBER
+        optional priority number to favor one site over another; no default
+    
+    --delay SECONDS
+        specify how long to leave site in the queue spool before moving
+        it to the active queue; default is 0 seconds
+
+    --timeout SECONDS
+        specify how long attempt to call should persist in queue
+        default is 60 seconds
+    
+SPECIAL ATTRIBUTES
+    The following files are created as attributes in the site object to
+    communicate settings to other methods.
+
+    q-PRIORITY
+    q-DELAY
+    q-TIMEOUT
+    
+AUTHOR
+    Ken.Irving@alaska.edu 2010
+

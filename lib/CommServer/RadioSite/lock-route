@@ -52,6 +52,10 @@ main () {
         rm @LOCK
         exit 2
         }
+    test -n "$show_then_release" && {
+        echo "${route[@]}"
+        
+        }
     echo "${route[@]}" >| @LOCK
     log-route | tob log.store
     }
@@ -65,6 +69,8 @@ while test -n "$1"; do
         exit 0
     elif test $tag == --help; then
         exec awk '/^NAME/{ok=1}ok{print}' $0  
+    elif test $tag == --release; then
+        show_then_release=1
     fi
 done
 
@@ -82,7 +88,7 @@ NAME
     lock-route
 
 SYNOPSIS
-    radiosite.lock-route [--max-hops] [-h|--help] [tag]
+    radiosite.lock-route [--max-hops] [--release] [-h|--help] [tag]
 
 EXIT VALUES
     0 -- success
@@ -100,4 +106,13 @@ DESCRIPTION
 
 ATTRIBUTES
     @max-hops -- maximum number of radio hops from base to site
+
+OPTIONS
+    --max-hops NUMBER
+
+    --release
+        print the route to stdout, then unlock all nodes
+        
+AUTHOR
+    ken.irving@alaska.edu 2010
 

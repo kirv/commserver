@@ -1,0 +1,106 @@
+#!/usr/bin/perl
+# !/usr/bin/perl -w
+use strict;
+use warnings;
+
+open PID, '>', '.@pid' or warn $!;
+print PID $$, "\n";
+close PID or warn $!;
+
+$| = 1;
+
+use constant PROMPT => 'query: ';
+print PROMPT;
+
+while ( <> ) { # read input from the client
+    chomp;
+    s/\r//;
+
+    if ( m/^\s*$/ ) { } # skip blank lines 
+
+    elsif ( m/^\s*#/ ) { } # skip comment lines
+
+    elsif ( m/^h(elp)?$/i ) { # action command
+        help_screen();
+        }
+
+    elsif ( m/^q(uit)?$/i ) { # action command
+        print "goodbye!\n";
+        exit 0;
+        }
+
+    elsif ( m/^list\s*(.*)?$/i ) { # list sites command
+        system "ls $1";
+        }
+
+    elsif ( m/^call\s+(.+)$/ ) { # load and call with query parameters
+        my $site = $1;
+        $site =~ s/\r//;
+
+        unless ( -d $site ) { # try alternate ways to resolve site
+            if ( -d "_/$site" ) {
+                $site = "_/$site";
+                }
+            else {
+                $site = resolve_site_or_die($site);
+                }
+            }
+
+        exec "/usr/local/bin/tob $site.call";
+        }
+
+    else {
+        print "unknown query: $_, try:\n";
+        help_screen();
+        }
+    print PROMPT;
+    }
+
+exit 0;
+
+sub help_screen {
+    print << "    END_HELP";
+    list -- list all sites
+    help -- display this message
+    quit -- close down session
+    call -- call specified site
+    END_HELP
+    }
+
+sub resolve_site_or_die {
+    my $site = shift;
+    if ( -d "_/transition/$site" ) {
+        log_transition($site, "_/transition/$site");
+        return "_/transition/$site";
+        }
+    opendir TRANS, '_/transition/' or die $!;
+    foreach my $dir ( readdir TRANS ) {
+        next if $dir =~ m/^\./;
+        $dir = "_/transition/$dir";
+        next unless -d $dir && ! -l $dir;
+        if ( -d "$dir/$site" ) {
+            log_transition($site, "$dir/$site");
+            return "$dir/$site";
+            }
+        }
+    closedir TRANS or die $!;
+    # the site was not found, so log the attempt then quit with error:
+    my $timestamp = `/bin/date --iso=minutes`;
+    chomp $timestamp;
+    open FAILED, '>>', '@failed' or warn $!;
+    print FAILED "$site $timestamp\n";
+    close FAILED or warn $!;
+    die "unable to resolve $site\n";
+    }
+
+sub log_transition {
+    my $called = shift;
+    my $alternate = shift;
+    # The site was resolved through _/transition/, which is a 
+    #   temporary means to catch clients using the wrong name.
+    my $timestamp = `/bin/date --iso=minutes`;
+    chomp $timestamp;
+    open TRANSITIONS, '>>', '@transitions' or warn $!;
+    print TRANSITIONS "$called $alternate $timestamp\n";
+    close TRANSITIONS or warn $!;
+    }
