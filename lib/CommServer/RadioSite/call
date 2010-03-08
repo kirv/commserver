@@ -4,7 +4,7 @@ self=.
 
 main () {
     tag=${TOB_object##*[./]}
-    tob $self.lock-route $tag || exit
+    test -s @LOCK || tob $self.lock-route $tag || exit
     trap "tob $self.unlock-route" EXIT TERM
     route=$(<@LOCK)
     base=${route%% *}

@@ -2,47 +2,73 @@
 
 error() { echo "$@" >&2; exit 1; }
 
+tob=/usr/local/bin/tob
+self=.
 spool=.q-spool
-test -d $spool || error CommSite object not initialized
 
 # default values for options:
 timeout=60
 delay=0
+unset notified
+
+# parse and handle command line options:
+while test -n "$1" -a "${1:0:1}" == '-'; do
+    opt=$1 && shift
+    case $opt in
+        --notified)
+            notified=1
+            ;;
+        --help)
+            awk '/^NAME$/{ok=1}ok{print}' $0
+            exit 0
+            ;;
+        -h) echo $(basename $0) [--notified|-h|--help] [SITE [SITE_OPTIONS]]       
+            exit 0
+            ;;
+        *)  error unknown option: $opt;;
+    esac
+done
 
 query=( call "$@" )
 unset query[0]
-# skip dialog if any arguments are present on command line:
-test -n "$1" || while read -a query -p 'query: '; do
-    cmd=$query
-    unset query[0]
-    case $cmd in
 
-        call)   break
-                ;;
-
-        ls)     ls "${query[@]}"
-                ;;
-
-        q|quit) echo goodbye!
-                exit 0
-                ;;
-
-        h)      printf "    %s\n" \
-                    'call SITE [OPTIONS] -- check, then queue site to call' \
-                    'ls                 -- list commserver object contents' \
-                    'q|quit             -- exit' \
-                    'h                  -- show short help' \
-                    'help               -- show man page'
-                ;;
-
-        help)   awk '/^NAME$/{ok=1}ok{print}' $0
-                ;;
-
-        *)      printf "\a?\n"
-                ;;
-
-    esac
-done
+# skip dialog if a non-option argument (the site to call) is present:
+# test -n "$1" || while read -a query -p "query: "; do
+test -n "$1" || {
+    printf 'query: '
+    while read -a query; do
+        cmd=$query
+        unset query[0]
+        case $cmd in
+    
+            call)   break
+                    ;;
+    
+            ls)     ls "${query[@]}"
+                    ;;
+    
+            q|quit) echo goodbye!
+                    exit 0
+                    ;;
+    
+            h)      printf "    %s\n" \
+                        'call SITE [OPTIONS] -- queue site to call' \
+                        'ls [...]           -- list commserver object contents' \
+                        'q|quit             -- exit' \
+                        'h                  -- show short help' \
+                        'help               -- show man page'
+                    ;;
+    
+            help)   awk '/^NAME$/{ok=1}ok{print}' $0
+                    ;;
+    
+            *)      printf "\a?\n"
+                    ;;
+    
+        esac
+        printf 'query: '
+    done
+    }
 
 site=${query[1]}
 unset query[1]
@@ -50,13 +76,17 @@ unset query[1]
 # echo call $site with args: "${query[@]}" 
 test -d $site || error no site: $site
 
-echo 1 $site
+# echo DEBUG 1 $site
 
-i=2 # skip entries 0 ('call' command) and 1 (the site)
+i=2 # skip entries 0 ('call') and 1 (the site)
 while test -n "${query[$i]}"; do
     case ${query[$i]} in
         --notify)
             notify=1
+            ;;
+
+        --notified)
+            notified=1
             ;;
 
         --priority)
@@ -83,11 +113,23 @@ done
 # create tag as short form of site name, in case it spans directories:
 tag=${site##*/}
 
-echo 2 $tag
+if test -e .q-notify-pool/$tag; then
+    # link exists, so check for --notified...
+    test -n "$notified" ||
+        error call $site missing --notified option
+    # waiting for notified request, got it, so do it:
+    exec $tob $site.call
+else
+    # link does not exist, so make sure --notified was not given
+    test -n "$notified" &&
+        error $site not expecting notified contact
+fi
+
+# echo DEBUG 2 $tag
 
 # check that the site isn't already in the spool or queue:
-test -d $spool/$tag && error site $site is already spooled
-test -d $queue/$tag && error site $site is already queued
+test -d .q-spool/$tag && error site $site is already spooled
+test -d .q/$tag && error site $site is already queued
 
 # now set attributes in the site object for the spool and queue operations:
 
@@ -108,23 +150,42 @@ touch -d @$future $site/q-TIMEOUT
 test -n "$priority" && touch $site/q-PRIORITY=$priority
 
 # now set link to site object in spool:
-ln -s ../$site $spool/$tag
+ln -s ../$site .q-spool/$tag
 
-# and wait for the queue manager to give a go or no-go:
+# make sure the queue manager is running:
+(   set -C
+    >.@PID && {
+        echo START RUN METHOD
+        ($tob $self.run &)
+        }
+    set +C
+    ) 2>/dev/null
+
+# and WAIT for the queue manager to give a go or no-go:
 until test -e $site/q-PASSED -o -e $site/q-FAILED; do
     sleep 1
 done
 
 test -e $site/q-FAILED && exit 1
 
+echo site passed
+
 test -e $site/q-PASSED || error should not happen
 
 test -n "$notify" && {
+    now=$(date +%s)
+    future=$(($now+10))
+    touch -d @$future $site/q-TIMEOUT
+    ln -s ../$site .q-notify-pool/$tag
     echo ready to call $site
     exit 0
     }
 
-exec /usr/local/bin/tob $site.call
+$tob $site.type
+
+echo DO: exec $tob $site.call
+
+exec $tob $site.call
 
 exit 0
 
@@ -136,6 +197,21 @@ DESCRIPTION
     pick-site-to-call method which moves the site from the spool into
     the queue.
 
+    The method accepts a few command line options, and the command line
+    can also be used to specify a site to query (and also options to that
+    query) as an alternative to the query dialog.
+
+COMMAND LINE OPTIONS
+    --as-notified
+        must be specified in the call is in response to a previous call
+        requesting notification
+
+    -h
+        show brief synopsis, then exit
+    
+    --help
+        show this manpage, then exit
+    
 COMMANDS
     Enter one of the following at the 'query:' prompt:
 
