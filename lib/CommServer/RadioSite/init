@@ -1,6 +1,6 @@
 #!/bin/sh
 
-usage="RadioSite.init [--radio CODE] [--name STRING]"
+usage="RadioSite.init [--radio CODE] [--id STRING] [--name STRING]"
 
 # create container for radio links to other sites:
 tob-new --hide-attr linkto Object
@@ -8,19 +8,32 @@ tob-new --hide-attr linkto Object
 while test -n "$1"; do
     arg=$1 && shift
 
-    if test $arg == --radio; then
-        radio=$1 && shift
+    case $arg in
+        --radio)    
+            radio=$1 && shift
+            ;;
 
-    elif test $arg == --name; then
-        name="$1" && shift
-    else
-        echo RadioSite.init -- unknown argument: $arg >&2
-        exit 1
-    fi
+        --name)    
+            name=$1 && shift
+            ;;
+
+        --id)    
+            id=$1 && shift
+            ;;
+
+        *)
+            echo RadioSite.init -- unknown argument: $arg >&2
+            exit 1
+            ;;
+    esac
+
 done
 
 test -n "$radio" && 
     echo $radio > \@radio
+
+test -n "$id" && 
+    echo $id > \@id
 
 test -n "$name" && 
     echo $name > \@name
