@@ -117,15 +117,16 @@ while test -n "${query[$i]}"; do
     i=$(($i+1))
 done
 
-# create tag as short form of site name, in case it spans directories:
-tag=${site##*/}
+# site @id attribute should be unique, so use for link name:
+id=$(<$site/@id)
+test -n "$id" || error no @id attribute in $site
 
-if test -e .q-notify-pool/$tag; then
+if test -e .q-notify-pool/$id; then
     # link exists, so check for --notified...
     test -n "$notified" ||
         error call $site missing --notified option
     # waiting for notified request, got it, so do it:
-    rm .q-notify-pool/$tag
+    rm .q-notify-pool/$id
     exec $tob $site.call
 else
     # link does not exist, so make sure --notified was not given
@@ -133,11 +134,11 @@ else
         error $site not expecting notified contact
 fi
 
-# echo DEBUG 2 $tag
+# echo DEBUG 2 $id
 
 # check that the site isn't already in the spool or queue:
-test -d .q-spool/$tag && error site $site is already spooled
-test -d .q/$tag && error site $site is already queued
+test -d .q-spool/$id && error site $site is already spooled
+test -d .q/$id && error site $site is already queued
 
 # now set attributes in the site object for the spool and queue operations:
 
@@ -158,7 +159,7 @@ touch -d @$future $site/q-TIMEOUT
 test -n "$priority" && touch $site/q-PRIORITY=$priority
 
 # now set link to site object in spool:
-ln -s ../$site .q-spool/$tag
+ln -s ../$site .q-spool/$id
 
 # make sure the queue manager is running:
 (   set -C
@@ -188,7 +189,7 @@ test -n "$notify" && {
     now=$(date +%s)
     future=$(($now+10))
     touch -d @$future $site/q-TIMEOUT
-    ln -s ../$site .q-notify-pool/$tag
+    ln -s ../$site .q-notify-pool/$id
     echo ready to call $site
     exit 0
     }

@@ -43,12 +43,13 @@ echo ok 1
 process_spool() { # move sites into queue unless delay, return 0 if empty
     for site in .q-spool/*; do
     
-        test "${site##*/}" == '*' && return 0
+        id="${site##*/}"
+        test "$id" == '*' && return 0
     
-        echo spooled: $site
+        echo spooled: $id
     
         # leave site in spool if also in queue:
-        test -e $queue/${site#*/} && continue
+        test -e $queue/$id && continue
     
         # move site into queue if no delay attribute:
         test -e $site/q-DELAY || {
@@ -69,7 +70,8 @@ process_queue() { # return value: 0 if empty, else 1
     unset choices
     for site in $queue/*; do
     
-        test "${site#*/}" == '*' && return 0 
+        id="${site#*/}"
+        test "$id" == '*' && return 0 
     
         echo queued: $site
     
@@ -127,7 +129,8 @@ echo ok 1b
 check_notify_pool() { # check candidates for timeout
     for site in .q-notify-pool/*; do
     
-        test "${site##*/}" == '*' && return 0
+        id=${site##*/}
+        test "$id" == '*' && return 0
     
         echo notified: $site
     
@@ -137,7 +140,7 @@ check_notify_pool() { # check candidates for timeout
         # timeout has expired, so unlock route and remove site from pool
         s=$(readlink -f $site)
         rm $site
-        $tob $s.unlock-route ${site##*/}
+        $tob $s.unlock-route $id
 
         echo timeout: $site removed from notify-pool, unlocked
 
@@ -191,8 +194,8 @@ while true; do
     tsite=${site/\//.}
     
     echo aquiring lock on route...
-
-    $tob $tsite.lock-route ${site##*/} || {
+    id=${site##*/}
+    $tob $tsite.lock-route $id || {
         # should have worked, so just bail and better luck next time
         echo failed to aquire route to $site... >&2
         sleep $sleep_sec
