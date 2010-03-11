@@ -9,12 +9,16 @@ spool=.q-spool
 # default values for options:
 timeout=60
 delay=0
+unset notify
 unset notified
 
 # parse and handle command line options:
 while test -n "$1" -a "${1:0:1}" == '-'; do
     opt=$1 && shift
     case $opt in
+        --notify)
+            notify=1
+            ;;
         --notified)
             notified=1
             ;;
@@ -34,9 +38,12 @@ unset query[0]
 
 # skip dialog if a non-option argument (the site to call) is present:
 # test -n "$1" || while read -a query -p "query: "; do
-test -n "$1" || {
+test -n "$1" || { # no arguments given, so run query loop:
     printf 'query: '
     while read -a query; do
+        # special case: filter trailing \r character if present in last word:
+        i=$((${#query[@]}-1))
+        query[$i]=${query[$i]%$'\r'}
         cmd=$query
         unset query[0]
         case $cmd in
@@ -118,6 +125,7 @@ if test -e .q-notify-pool/$tag; then
     test -n "$notified" ||
         error call $site missing --notified option
     # waiting for notified request, got it, so do it:
+    rm .q-notify-pool/$tag
     exec $tob $site.call
 else
     # link does not exist, so make sure --notified was not given
@@ -133,8 +141,8 @@ test -d .q/$tag && error site $site is already queued
 
 # now set attributes in the site object for the spool and queue operations:
 
-# delete any existing queue attributes, with prefix 'q-':
-rm $site/q-*
+# delete any existing queue attributes, with prefix 'q-', ignore errors:
+rm $site/q-* 2> /dev/null
 
 now=$(date +%s)
 test -n "$delay" && test $delay -gt 0 && {
@@ -166,11 +174,15 @@ until test -e $site/q-PASSED -o -e $site/q-FAILED; do
     sleep 1
 done
 
-test -e $site/q-FAILED && exit 1
+test -e $site/q-FAILED && {
+    echo FAILED
+    error FAILED
+    }
 
-echo site passed
-
+# check that passed attribute is actually set, just in case:
 test -e $site/q-PASSED || error should not happen
+
+echo PASSED
 
 test -n "$notify" && {
     now=$(date +%s)
@@ -180,10 +192,6 @@ test -n "$notify" && {
     echo ready to call $site
     exit 0
     }
-
-$tob $site.type
-
-echo DO: exec $tob $site.call
 
 exec $tob $site.call
 

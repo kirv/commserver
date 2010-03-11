@@ -38,6 +38,8 @@ test -e : -o -e .: && {
 
 test -n "$sleep_sec" || sleep_sec=2
 
+echo ok 1
+
 process_spool() { # move sites into queue unless delay, return 0 if empty
     for site in .q-spool/*; do
     
@@ -61,6 +63,8 @@ process_spool() { # move sites into queue unless delay, return 0 if empty
     return 1
     }
 
+echo ok 1a
+
 process_queue() { # return value: 0 if empty, else 1
     unset choices
     for site in $queue/*; do
@@ -80,18 +84,9 @@ process_queue() { # return value: 0 if empty, else 1
         # workaround bug that .q/site.foo has to be .q.site.foo:
         tsite=${site/\//.}
         # aquire a route or skip this site:
-        $tob $tsite.lock-route || continue
+        route=$($tob $tsite.lock-route --release probe)
+        test -n "$route" || continue
 
-      # echo $site is locked
-    
-        # save, then release locked route
-        route=( $(<$site/@LOCK) )
-      # echo route: "${route[@]}"
-      # echo $tob $tsite.unlock-route
-        $tob $tsite.unlock-route
-
-      # echo $site is unlocked
-    
         # calculate one or more metrics based on the route...
     
       # echo metrics...
@@ -127,6 +122,8 @@ process_queue() { # return value: 0 if empty, else 1
     return 1
     }
 
+echo ok 1b
+
 check_notify_pool() { # check candidates for timeout
     for site in .q-notify-pool/*; do
     
@@ -140,7 +137,7 @@ check_notify_pool() { # check candidates for timeout
         # timeout has expired, so unlock route and remove site from pool
         s=$(readlink -f $site)
         rm $site
-        $tob $s.unlock-route
+        $tob $s.unlock-route ${site##*/}
 
         echo timeout: $site removed from notify-pool, unlocked
 
@@ -151,9 +148,13 @@ check_notify_pool() { # check candidates for timeout
     return 1
     }
 
+echo ok 1c
+
 while true; do
     # quit if the pid file is not set
     test -s .@PID || error pid file .@PID was removed or reset
+
+    echo ok 2
 
     date +%s > .@NOW
     now=$(<.@NOW)
@@ -165,6 +166,8 @@ while true; do
         exit 0
         }
 
+    echo ok 3
+
   # echo something is in the spool or queue
     test -n "$choices" || {
       # echo sleep...
@@ -172,6 +175,7 @@ while true; do
         }
     echo CHOICES: $choices
     
+    echo ok 4
     # sort choices and select the one with the greatest value:
     choice=$(printf "%s\n" $choices | sort -n | tail -n 1)
     
@@ -180,17 +184,15 @@ while true; do
     
     echo CHOSEN: $choice
 
+    echo ok 5
     site=${choice#*-}
-    tsite=${site/\//.}
-    
-  # echo DEBUG site: {$site}
-  # echo DEBUG tsite: {$tsite}
-
     test -e $site || error ERROR: $site not found
+
+    tsite=${site/\//.}
     
     echo aquiring lock on route...
 
-    $tob $tsite.lock-route $tsite || {
+    $tob $tsite.lock-route ${site##*/} || {
         # should have worked, so just bail and better luck next time
         echo failed to aquire route to $site... >&2
         sleep $sleep_sec
