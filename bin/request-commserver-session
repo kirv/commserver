@@ -1,0 +1,46 @@
+#!/usr/bin/expect -f
+
+# request-commserver-session SITE HOST PORT
+# connect to commserver (via inetd.conf on remote host)
+# enter 'call site' command at 'query:' prompt
+# wait for either PASSED or FAILED string and:
+#   if FAILED, exit with status 1
+#   if PASSED, exec process if given, otherwise exit with status 0
+
+set site [lindex $argv 0]
+set host [lindex $argv 1]
+set port [lindex $argv 2]
+set exec [lindex $argv 3] ;# optional process to exec:
+
+if { $site == "" || $host == "" || $port == "" } {
+    puts "synopsis: $argv0 --site=SITE --host=HOST --port=PORT \[--exec=EXEC\]"
+    exit 1
+    }
+
+# use scan to get rid of the --cccc= option prefix:
+scan $site "%6s=%s" discard site
+scan $host "%6s=%s" discard host
+scan $port "%6s=%s" discard port
+
+spawn nc $host $port
+
+set timeout 2
+expect {
+    timeout { puts "no prompt from server"; exit 1 }
+    query: { send "call $site --notify --timeout 30\r" }
+    }
+
+set timeout 40
+expect {
+    FAILED { exit 1 }
+    PASSED { 
+        if { $exec != "" } {
+            puts "exec $exec"
+            exec $exec
+            }
+        exit 0
+        }
+    }
+
+puts "no result from server"
+exit 2
