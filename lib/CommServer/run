@@ -127,7 +127,7 @@ process_queue() { # return value: 0 if empty, else 1
 echo ok 1b
 
 check_notify_pool() { # check candidates for timeout
-    for site in .q-notify-pool/*; do
+    for site in .q-notified/*; do
     
         id=${site##*/}
         test "$id" == '*' && return 0
@@ -142,7 +142,7 @@ check_notify_pool() { # check candidates for timeout
         rm $site
         $tob $s.unlock-route $id
 
-        echo timeout: $site removed from notify-pool, unlocked
+        echo timeout: $site removed from notified, unlocked
 
         ## NOTE: the above may have/be a race condition, so needs work...
         ## we remove the link before unlocking the route... maybe that's ok?
@@ -165,7 +165,7 @@ while true; do
   # process_spool && process_queue && check_notify_pool && exit 0
 
     process_spool && process_queue && check_notify_pool && {
-        echo nothing in queue, spool, or notify-pool
+        echo nothing in queue, spool, or notified
         exit 0
         }
 

@@ -2,6 +2,6 @@
 
 usage="CommServer.init"
 
-mkdir .q .q-spool .q-notify-pool
+mkdir .q .q-spool .q-notified
 
 

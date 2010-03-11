@@ -121,12 +121,12 @@ done
 id=$(<$site/@id)
 test -n "$id" || error no @id attribute in $site
 
-if test -e .q-notify-pool/$id; then
+if test -e .q-notified/$id; then
     # link exists, so check for --notified...
     test -n "$notified" ||
         error call $site missing --notified option
     # waiting for notified request, got it, so do it:
-    rm .q-notify-pool/$id
+    rm .q-notified/$id
     exec $tob $site.call
 else
     # link does not exist, so make sure --notified was not given
@@ -164,7 +164,6 @@ ln -s ../$site .q-spool/$id
 # make sure the queue manager is running:
 (   set -C
     >.@PID && {
-        echo START RUN METHOD
         ($tob $self.run &)
         }
     set +C
@@ -177,20 +176,18 @@ done
 
 test -e $site/q-FAILED && {
     echo FAILED
-    error FAILED
+    exit 1
     }
 
 # check that passed attribute is actually set, just in case:
 test -e $site/q-PASSED || error should not happen
 
-echo PASSED
-
 test -n "$notify" && {
     now=$(date +%s)
     future=$(($now+10))
     touch -d @$future $site/q-TIMEOUT
-    ln -s ../$site .q-notify-pool/$id
-    echo ready to call $site
+    ln -s ../$site .q-notified/$id
+    echo PASSED
     exit 0
     }
 
