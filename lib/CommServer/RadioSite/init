@@ -41,9 +41,5 @@ test -n "$name" &&
 tob-new log TimeSeries
 tob-new sessions TimeSeries
 
-# this could be done more directly if Cron could be a mixin...
-tob-new --hide radio-power Cron
-ln -s .radio-power/state-ON radio-power
-
 echo initialized object as $(readlink ^) |
     tob log.store

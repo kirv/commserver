@@ -6,7 +6,7 @@ set -o noclobber
 
 lock_route () {
     for node in "$@"; do
-        test -e $node/radio-power && >$node/@LOCK && {
+        test -e "$node/radio-power=ON" && >$node/@LOCK && {
             test -n "$tag" &&
                  echo $tag >| $node/@LOCK
             locks="$locks $node/@LOCK"
@@ -33,7 +33,7 @@ log-route () {
     }
 
 main () {
-    test -e radio-power || exit 3
+    test -e 'radio-power=ON' || exit 3
     if test -n "$tag"; then
         printf "$tag" >\@LOCK || exit 1
     else

@@ -9,18 +9,18 @@ unset off_at
 
 set-on-minutes () {
     minutes="$1"
-    tob radio-power.cron-add --minute $minutes touch state=ON
+    tob $self.cron-add --minute $minutes touch radio-power=ON
     tob $self.touch radio-ON=$minutes
     }
 
 set-off-minutes () {
     minutes="$1"
-    tob radio-power.cron-add --minute $minutes rm state=ON
+    tob $self.cron-add --minute $minutes radio-power-OFF
     tob $self.touch radio-OFF=$minutes
     }
 
 show-settings () {
-    tob radio-power.cron-job
+    tob $self.cron-job
     }
 
 while test "${1:0:1}" == '-'; do
@@ -66,6 +66,8 @@ SYNOPSIS
     radio-times [--on MINUTES] [--off MINUTES] [set|check]
 
 DESCRIPTION
+    Added ^cron 'mixin' link to the Cron class; need to edit the following...
+
     The RadioSite object should contain a Cron object named .radio-power,
     and a symlink to .radio-power/state-ON named radio-power.  The cron
     object is set to make crontab entries for the argument times, touching

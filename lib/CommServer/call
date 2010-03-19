@@ -22,6 +22,9 @@ while test -n "$1" -a "${1:0:1}" == '-'; do
         --notified)
             notified=1
             ;;
+        --debug)
+            debug=1
+            ;;
         --help)
             awk '/^NAME$/{ok=1}ok{print}' $0
             exit 0
@@ -81,7 +84,14 @@ site=${query[1]}
 unset query[1]
 
 # echo call $site with args: "${query[@]}" 
-test -d $site || error no site: $site
+test -d $site || { # site does not resolve directly, so try harder...
+    for dir in _ _/*; do
+        test -d $dir/$site || continue
+        site=$dir/$site
+        break
+    done
+    test -d $site || error no site: $site
+    }
 
 # echo DEBUG 1 $site
 
@@ -96,14 +106,26 @@ while test -n "${query[$i]}"; do
             notified=1
             ;;
 
+        --priority=*)
+            priority=${query[$i]#*=}
+            ;;
+
         --priority)
             i=$(($i+1))
             priority=${query[$i]}
             ;;
 
+        --timeout=*)
+            timeout=${query[$i]#*=}
+            ;;
+
         --timeout)
             i=$(($i+1))
             timeout=${query[$i]}
+            ;;
+
+        --delay=*)
+            delay=${query[$i]#*=}
             ;;
 
         --delay)

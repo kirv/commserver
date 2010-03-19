@@ -3,8 +3,8 @@
 self=.
 
 main () {
-    tag=${TOB_object##*[./]}
-    test -s @LOCK || tob $self.lock-route $tag || exit
+    id=$(<@id)
+    test -s @LOCK || tob $self.lock-route $id || exit
     trap "tob $self.unlock-route" EXIT TERM
     route=$(<@LOCK)
     base=${route%% *}
@@ -16,7 +16,7 @@ main () {
         >@route
         }
     radio=$(<@radio)
-    options=( --tag "$tag" )
+    options=( --tag "$id" )
     TOB_get_attr \@prompt && options=( "${options[@]}" --prompt $attr )
     TOB_get_attr \@retries && options=( "${options[@]}" --retries $attr )
     t0=$(date +%s)
@@ -27,9 +27,9 @@ main () {
         date +%s > @last-session-end-time
         tee < $base/\@session \@session | tob sessions.store
         }
-    tob $self.unlock-route --no-log $tag &&
+    tob $self.unlock-route --no-log $id &&
         trap - EXIT TERM
-    printf "%ds to call %s via %s and path <%s>\n" $elapsed $tag $base "$repeaters" |
+    printf "%ds to call %s via %s and path <%s>\n" $elapsed $id $base "$repeaters" |
         tob log.store
     }
 

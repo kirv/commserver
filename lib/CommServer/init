@@ -3,5 +3,6 @@
 usage="CommServer.init"
 
 mkdir .q .q-spool .q-notified
+tob-new --hide log TimeSeries
 
 

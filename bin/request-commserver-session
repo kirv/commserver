@@ -7,33 +7,37 @@
 #   if FAILED, exit with status 1
 #   if PASSED, exit with status 0
 
-set site [lindex $argv 0]
-set host [lindex $argv 1]
-set port [lindex $argv 2]
-set tmout [lindex $argv 3]
+set site ""
+set host ""
+set port ""
+set tmout 300
+set opts ""
 
-if { $site == "" || $host == "" || $port == "" } {
-    puts "synopsis: $argv0 --site=SITE --host=HOST --port=PORT \[--timeout=SEC\]"
-    exit 1
+foreach arg $argv {
+    regexp {([^=]+)=(.*)} $arg * tag val
+    switch -- $tag {
+        "--site" { set site $val }
+        "--host" { set host $val }
+        "--port" { set port $val }
+        "--timeout" { set tmout $val }
+        default { lappend opts $arg }
+        }
     }
 
-# use scan to get rid of the --cccc= option prefix:
-scan $site "%6s=%s" discard site
-scan $host "%6s=%s" discard host
-scan $port "%6s=%s" discard port
-
-if { $tmout == "" } { set tmout 300 } 
-else { scan $tmout "%9s=%s" discard tmout }
+if { $site == "" || $host == "" || $port == "" } {
+    puts "synopsis: $argv0 --site=SITE --host=HOST --port=PORT \[--timeout=SEC\] \[...\]"
+    exit 1
+    }
 
 spawn nc $host $port
 
 set timeout 2
 expect {
     timeout { puts "no prompt from server"; exit 1 }
-    query: { send "call $site --notify --tmout 30\r" }
+    query: { send "call $site --notify --timeout=$tmout $opts\r" }
     }
 
-set timeout $tmout
+set timeout [expr $tmout+10]
 expect {
     FAILED { exit 1 }
     PASSED { exit 0 }

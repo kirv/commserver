@@ -38,48 +38,62 @@ test -e : -o -e .: && {
 
 test -n "$sleep_sec" || sleep_sec=2
 
-echo ok 1
+# echo ok 1
 
 process_spool() { # move sites into queue unless delay, return 0 if empty
+    delayed=0
+    despooled=0
     for site in .q-spool/*; do
     
         id="${site##*/}"
         test "$id" == '*' && return 0
     
-        echo spooled: $id
+      # echo spooled: $id
     
         # leave site in spool if also in queue:
-        test -e $queue/$id && continue
+        # ... NO ... drop it from the spool if that's the case
+        test -e $queue/$id && {
+            rm $site
+            echo drop duplicate $site from spool
+            continue
+            }
     
         # move site into queue if no delay attribute:
         test -e $site/q-DELAY || {
-            mv $site $queue && continue
+            mv $site $queue
+            queued=$(($queued+1))
+            despooled=$(($despooled+1))
+            continue
             }
     
         # move site into queue if delay has expired:
         test $site/q-DELAY -nt .@NOW || {
-            mv $site $queue && continue
+            mv $site $queue
+            queued=$(($queued+1))
+            despooled=$(($despooled+1))
+            continue
             }
     done
+    test $despooled -gt 0 && return 2
     return 1
     }
 
-echo ok 1a
+# echo ok 1a
 
 process_queue() { # return value: 0 if empty, else 1
-    unset choices
+    choices=()
+    n=0
     for site in $queue/*; do
     
         id="${site#*/}"
         test "$id" == '*' && return 0 
     
-        echo queued: $site
-    
         # remove site from queue if timeout has elapsed:
         test $site/q-TIMEOUT -nt .@NOW || {
             touch $site/q-FAILED
             rm $site
-            echo timeout: $site
+          # echo timeout: $site
+            tmouts=$(($tmouts+1))
             continue
             }
     
@@ -91,12 +105,10 @@ process_queue() { # return value: 0 if empty, else 1
 
         # calculate one or more metrics based on the route...
     
-      # echo metrics...
-    
         # metric for number of hops over minimum:
         min_hops=1
         test -e $site/@min-hops && min_hops=$(<$site/@min-hops)
-        extra_hops=$(( (${#route[@]} - $min_hops) * 10 ))
+        extra_hops=$(( (${#route[@]} - $min_hops) * 20 ))
     
         # age is time in seconds since last successful session:
         age=0
@@ -105,6 +117,7 @@ process_queue() { # return value: 0 if empty, else 1
         test -e $site/@last-session-end-time &&
             age=$(($now - $(<$site/@last-session-end-time)))
         # convert age to crude/approximate logarithmic value:
+        test $age -lt 0 && age=0
         age=$(( (${#age} - 1)* 10 + ${age:0:1} ))
     
         sum=$(( $age - $extra_hops ))
@@ -112,19 +125,26 @@ process_queue() { # return value: 0 if empty, else 1
         test -e $site/q-PRIORITY && 
             sum=$(( $sum + $(<$site/q-PRIORITY) ))
     
+        test -e $site/q-PRIORITY=* && {
+            value=$(ls $site/q-PRIORITY=*)
+            sum=$(( $sum + ${value#*=} ))
+            }
+    
         test -n "$random_mod" &&
             sum=$(( $sum + $RANDOM % $random_mod + $random_ofs ))
     
         # prevent values < 0 in case of trouble with leading - sign:
         test $sum -lt 0 && sum=0
 
-        echo METRIC-SITE: $sum-$site
-        choices="$choices $sum-$site"
+      # echo METRIC-SITE: $sum-$site
+      # choices="$choices $sum-$site"
+        choices[$n]=$sum-$site
+        n=$(($n+1))
     done
     return 1
     }
 
-echo ok 1b
+# echo ok 1b
 
 check_notify_pool() { # check candidates for timeout
     for site in .q-notified/*; do
@@ -132,7 +152,7 @@ check_notify_pool() { # check candidates for timeout
         id=${site##*/}
         test "$id" == '*' && return 0
     
-        echo notified: $site
+      # echo notified: $site
     
         # move site into queue if delay has expired:
         test $site/q-TIMEOUT -nt .@NOW && continue
@@ -140,9 +160,10 @@ check_notify_pool() { # check candidates for timeout
         # timeout has expired, so unlock route and remove site from pool
         s=$(readlink -f $site)
         rm $site
+        notified_tmouts=$(($notified_tmouts+1))
         $tob $s.unlock-route $id
-
-        echo timeout: $site removed from notified, unlocked
+        
+      # echo timeout: $site removed from notified, unlocked
 
         ## NOTE: the above may have/be a race condition, so needs work...
         ## we remove the link before unlocking the route... maybe that's ok?
@@ -151,50 +172,66 @@ check_notify_pool() { # check candidates for timeout
     return 1
     }
 
-echo ok 1c
+# echo ok 1c
 
+
+date +%s > .@START
+
+loops=0
+passed=0
+queued=0
+tmouts=0
+notified_tmouts=0
 while true; do
     # quit if the pid file is not set
     test -s .@PID || error pid file .@PID was removed or reset
 
-    echo ok 2
+  # echo ok 2
 
     date +%s > .@NOW
     now=$(<.@NOW)
 
   # process_spool && process_queue && check_notify_pool && exit 0
 
-    process_spool && process_queue && check_notify_pool && {
-        echo nothing in queue, spool, or notified
+    choices=()
+    process_spool; scan_spool=$?
+    process_queue; scan_queue=$?
+    check_notify_pool; scan_notified=$?
+    
+    # exit values from the above will be 0 when directory is empty, i.e. done
+    test $scan_spool == 0 -a $scan_queue == 0 -a $scan_notified == 0 && {
+        elapsed=$(($(date +%s)-$(<.@START)))
+        printf "%s.%s exiting after %d/%d passed/queued, %d+%d timeouts, %d loops, %ds\n" \
+            $TOB_object $TOB_method $passed $queued $tmouts $notified_tmouts $loops $elapsed
+        printf "%d passed, %d queued, %d q-tmout, %d n-tmout, %d loops, %ds\n" \
+            $passed $queued $tmouts $notified_tmouts $loops $elapsed | \
+            $tob $self.log.store
         exit 0
         }
 
-    echo ok 3
+  # echo ok 3
+
+    loops=$(($loops + 1))
 
   # echo something is in the spool or queue
     test -n "$choices" || {
       # echo sleep...
         sleep $sleep_sec && continue
         }
-    echo CHOICES: $choices
     
-    echo ok 4
+  # echo ok 4
     # sort choices and select the one with the greatest value:
-    choice=$(printf "%s\n" $choices | sort -n | tail -n 1)
-    
-  # echo DEBUG choices: {$choices}
-  # echo DEBUG choice: {$choice}
-    
-    echo CHOSEN: $choice
+    choice=$(printf "%s\n" "${choices[@]}" | sort -n | tail -n 1)
 
-    echo ok 5
+    echo SELECT $choice from ${#choices[@]} choices \(loop $loops\)
+
+  # echo ok 5
     site=${choice#*-}
     test -e $site || error ERROR: $site not found
 
     tsite=${site/\//.}
     
-    echo aquiring lock on route...
-    id=${site##*/}
+    id=$(<$site/@id)
     $tob $tsite.lock-route $id || {
         # should have worked, so just bail and better luck next time
         echo failed to aquire route to $site... >&2
@@ -202,8 +239,6 @@ while true; do
         continue
         } 
 
-    echo route is locked
-    
     # ASSERT: the route to $site is locked, ready to go!
     # should we check that this route is the same as the one checked above? Nah.
     
@@ -211,7 +246,8 @@ while true; do
     
     # remove site from queue:
     rm $site || error failed to dequeue $site...
-    echo dequeued: $site
+  # echo dequeued: $site
+    passed=$(($passed+1))
 
     sleep $sleep_sec
 done
@@ -219,7 +255,7 @@ done
 exit
 
 NAME
-    CommServer.pick-site-to-call -- process call queue spool and queue
+    CommServer.run -- process call queue spool and queue
 
 DESCRIPTION
     The goal is to select a site to call after weighing various metrics,

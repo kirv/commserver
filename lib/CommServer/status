@@ -8,7 +8,7 @@ printf "sites spooled: %d, queued: %d\n" $(ls .q-spool|wc -l) $(ls .q|wc -l)
 
 test "$1" == '--monitor' -o "$1" == '-m' || exit 0
 
-tail -F .@{PID,OUT,ERR}
+tail -F .@{OUT,ERR}
     
 
 
