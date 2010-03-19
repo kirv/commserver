@@ -1,0 +1,51 @@
+#!/bin/bash
+
+count=0
+for lock in */@LOCK; do
+
+    count=$(($count+1))
+    contents=( $(cat $lock 2>/dev/null) ) || continue
+    test "$contents" == probe && continue
+
+    test -d "$contents" || continue
+    test ${contents:0:1} == "/" || continue
+  # test "${contents#*/}" == "$contents" && continue
+
+    for node in "${contents[@]}"; do
+        tag=${node##*/}
+        test -e $node/@id && tag=$(<$node/@id)
+        printf "%-12s --> " $tag
+    done
+
+    target=$(<${lock%/*}/@id)
+
+    printf "$target\n"
+done
+
+# printf "%d locks inspected\n" $count
+echo $count
+
+# for lock in */@LOCK; do
+#   # printf "%-16s " ${lock%/*}
+#     contents=$(cat $lock 2>/dev/null) || {
+#         # handles case where lock has already disappeared:
+#         printf "%-16s ?\n" "${lock%/*}"
+#         continue
+#         }
+#     test "$contents" == probe && {
+#         # ignore probes for locks by server.run method:
+#         continue
+#         }
+#     printf "%-16s " ${lock%/*}
+#     n=0
+#     for node in $contents; do
+#         test $n -gt 0 && printf " -> "
+#         tag=${node##*/}
+#         test -e $node/@id && tag=$(<$node/@id)
+#         printf "%s" $tag
+#         n=$(($n+1))
+#     done
+#     test $n -gt 1 && printf " -> "
+#     printf "\n"
+# done
+
