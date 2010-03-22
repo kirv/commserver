@@ -318,7 +318,7 @@ else {
 
 $time_connect = time;
 
-log_steps("going interactive with client...");
+log_steps("client -> $tag interactive ...");
 
 # close previous log file, open another:
 $exp->log_file('');
@@ -334,7 +334,7 @@ set_property( '@state', '>...<');
 $exp->interact(\*STDIN, 'BAIL!');
 # $exp->interact();
 
-log_steps("client has terminated connection");
+log_steps("client -> $tag terminated at " . scalar localtime());
 
 set_property( '@state', 'done');
 
