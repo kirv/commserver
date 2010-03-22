@@ -1,0 +1,18 @@
+#!/bin/bash
+
+self=.
+
+test -e radio-hold=ON && exit 0
+
+test -e radio-power=ON && rm radio-power=ON
+
+exit
+
+NAME
+    radio-power-OFF -- remove radio-power attribute unless radio-hold is on
+
+DESCRIPTION
+
+AUTHOR
+    ken.irving@alaska.edu (c) 2010
+
