@@ -108,7 +108,9 @@ $| = 1; ## turn buffering off
 select STDOUT;
 
 log_steps(time);
-log_steps(sprintf "%s.%s %s", $ENV{TOB_object}, $ENV{TOB_method}, $tag);
+my $ob = $ENV{TOB_object};
+$ob =~ s{.*/}{};
+log_steps(sprintf "%s.%s %s", $ob, $ENV{TOB_method}, $tag);
 
 $| = 1; ## turn buffering off on STDOUT to client
 
@@ -258,7 +260,7 @@ sleep 1;
 
 my $dial_string = "ATXC${entry}ATD$radio";
 
-log_steps("ready to dial target radio with $dial_string");
+log_steps("dial string: $dial_string");
 
 $time_ready2dial = time;
 
@@ -301,7 +303,7 @@ if ( $prompt ) {
     }
 
 if ( $see_target ) {
-    log_steps("saw target prompt, sending 'CONNECTED' to client");
+    log_steps("saw prompt, send 'CONNECTED' to client");
     print "CONNECTED\r\n";
     push @call_summary, 'ok';
     set_property( '@state', 'prompt!');
@@ -334,7 +336,7 @@ set_property( '@state', '>...<');
 $exp->interact(\*STDIN, 'BAIL!');
 # $exp->interact();
 
-log_steps("client -> $tag terminated at " . scalar localtime());
+log_steps("$tag done at " . localtime_hms());
 
 set_property( '@state', 'done');
 
@@ -361,7 +363,7 @@ sub timed_out {
     $msg = 'n/a' unless defined $msg;
     push @call_summary, "timed_out:$msg";
     log_call_summary();
-    log_steps("expect() timed out: $msg");
+    log_steps("expect() timed out: $msg for $tag at " . localtime_hms());
     print "ABORTING CONNECTION\r\n";
     $exp->send("\e\e"); # send escapes in case in radio setup mode
     set_property( '@state', 'timeout');
@@ -401,5 +403,9 @@ sub set_property {
         }
     warn "$prop not set to $string; $!\n";
     return 0;
+    }
+
+sub localtime_hms {
+    return sprintf("%02d:%02d:%02d",(localtime())[2,1,0]);
     }
 
