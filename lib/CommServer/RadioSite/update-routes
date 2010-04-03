@@ -2,7 +2,7 @@
 
 self=.
 
-test $n "$1" && $1 == --max-hops && shift && max-hops=$1 && shift
+test $n "$1" && test $1 == --max-hops && shift && max-hops=$1 && shift
 
 ## called with no arguments, generate the @routes property:
 test -n "$1" || {

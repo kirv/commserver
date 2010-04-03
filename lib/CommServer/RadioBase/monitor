@@ -4,7 +4,8 @@ self=.
 echo prep
 
 test "$1"x == x &&
-    exec tail -f @radio-config-log @session-steps
+  # exec tail -f @radio-config-log @session-steps
+    exec tail -f @session-steps
 
 echo done
 

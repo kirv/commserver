@@ -303,13 +303,14 @@ if ( $prompt ) {
     }
 
 if ( $see_target ) {
-    log_steps("saw prompt, send 'CONNECTED' to client");
+    # saw prompt, so...
+    log_steps("sending 'CONNECTED' to client");
     print "CONNECTED\r\n";
     push @call_summary, 'ok';
     set_property( '@state', 'prompt!');
     }
 else {
-    log_steps("no target prompt, sending 'NO_PROMPT_SEEN' to client");
+    log_steps("sending 'NO_PROMPT_SEEN' to client");
     print "NO_PROMPT_SEEN\r\n";
     log_steps("quitting");
     push @call_summary, 'no';

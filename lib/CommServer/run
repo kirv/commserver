@@ -174,7 +174,6 @@ check_notify_pool() { # check candidates for timeout
 
 # echo ok 1c
 
-
 date +%s > .@START
 
 loops=0
@@ -223,7 +222,12 @@ while true; do
     # sort choices and select the one with the greatest value:
     choice=$(printf "%s\n" "${choices[@]}" | sort -n | tail -n 1)
 
-    echo SELECT $choice from ${#choices[@]} choices \(loop $loops\)
+  # echo SELECT $choice from ${#choices[@]} choices \(loop $loops\)
+  # rate100=$((${#choices[@]} * 100 / $(($(date +%s)-$now))
+  # len=${#rate100}
+    
+    printf "SELECT %s from %d choices, %ds\n" \
+        $choice ${#choices[@]} $(($(date +%s)-$now))
 
   # echo ok 5
     site=${choice#*-}
