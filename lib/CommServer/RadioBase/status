@@ -5,11 +5,14 @@ name=${TOB_object##*/}
 tag=$(<@tag)
 
 pid=$(<.@pid)
-test -d /proc/$pid || pid="($pid)"
+test -d /proc/$pid || {
+    time=$(date --iso=seconds)
+    pid="($time $pid)"
+    }
 
 lock='_'
 test -e @LOCK && lock=L
 
 state=$(<@state)
 
-printf "%10s %s %20s %s %s\n" $name $lock $tag $pid $state
+printf "%10s %s %20s %s %s\n" $name $lock $tag "$pid" $state
