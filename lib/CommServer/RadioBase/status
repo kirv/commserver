@@ -5,9 +5,15 @@ name=${TOB_object##*/}
 tag=$(<@tag)
 
 pid=$(<.@pid)
-test -d /proc/$pid || {
-    time=$(date --iso=seconds)
-    pid="($time $pid)"
+
+test "${pid#* }" == "$pid" && {
+    # pid value does not contain a space, so should be a valid or stale pid
+    test -d /proc/$pid || {
+        # pid is stale, so add the timestamp to the pid attribute:
+        time=$(date --iso=seconds)
+        pid="($time $pid)"
+        echo "$pid" > .@pid
+        }
     }
 
 lock='_'
