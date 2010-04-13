@@ -316,6 +316,7 @@ else {
     push @call_summary, 'no';
     log_call_summary();
     set_property( '@state', 'failed');
+    set_property( '@last-elapsed', time - $t0);
     die "bye!\n";
     }
 
@@ -340,6 +341,7 @@ $exp->interact(\*STDIN, 'BAIL!');
 log_steps("$tag done at " . localtime_hms());
 
 set_property( '@state', 'done');
+set_property( '@last-elapsed', time - $t0);
 
 log_call_summary();
 
@@ -368,6 +370,7 @@ sub timed_out {
     print "ABORTING CONNECTION\r\n";
     $exp->send("\e\e"); # send escapes in case in radio setup mode
     set_property( '@state', 'timeout');
+    set_property( '@last-elapsed', time - $t0);
     die qq(expect() timed out: $msg\n);
     }
 

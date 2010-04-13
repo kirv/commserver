@@ -1,9 +1,7 @@
 #!/bin/sh
 
 name=${TOB_object##*/}
-
 tag=$(<@tag)
-
 pid=$(<.@pid)
 
 test "${pid#* }" == "$pid" && {
@@ -11,8 +9,8 @@ test "${pid#* }" == "$pid" && {
     test -d /proc/$pid || {
         # pid is stale, so add the timestamp to the pid attribute:
         time=$(date +%j-%H:%M:%S)
-        pid="($time $pid)"
-        echo "$pid" > .@pid
+        elapsed=$(<@last-elapsed)
+        echo "($time ${elapsed}s $pid)" > .@pid
         }
     }
 
