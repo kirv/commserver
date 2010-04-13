@@ -10,7 +10,7 @@ test "${pid#* }" == "$pid" && {
     # pid value does not contain a space, so should be a valid or stale pid
     test -d /proc/$pid || {
         # pid is stale, so add the timestamp to the pid attribute:
-        time=$(date --iso=seconds)
+        time=$(date +%j-%H:%M:%S)
         pid="($time $pid)"
         echo "$pid" > .@pid
         }
