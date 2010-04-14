@@ -1,0 +1,47 @@
+# ~/.screen-commserver-monitor -- 25mar2010 ki
+
+# set up screen to monitor commserver in 5 windows as follows:
+
+#   |-------------|  top is 5 lines high
+#   |------|------|  2nd is split in two
+#   |-------------|  3rd down 8 lines high
+#   |-------------|
+
+chdir /var/local/site-comm/
+
+# first create 4 horizontal windows:
+split
+focus
+split
+focus
+split 
+focus
+
+# now move to the top and work down, setting sizes and so on:
+focus top
+resize 5    # set the size while we're here
+focus down
+# split the second window vertically  
+split -v
+focus
+# move to 3rd horizontal window (of 4) and set the size:
+focus
+resize 8
+
+# now move to the top and work down, starting apps
+focus top
+screen -t 'watch toolik.status; deadhorse.status' watch -t 'printf "%33s  %s\n" day-h:m:s $(date +%j-%H:%M:%S); tob toolik.status; tob deadhorse.status'
+focus
+screen -t toolik.monitor tob toolik.monitor
+focus
+screen -t deadhorse.monitor tob deadhorse.monitor
+focus
+screen -t 'watch queues, ..show-locks' watch -t 'for q in .q*; do printf "%12s %s\n" $q "$(ls $q/|wc -l)"; done; tob ..show-locks'
+focus
+screen -t 'site-comm.status -m' tob ..status -m
+# leave focus in the bottom window
+
+# set some key bindings for convenience:
+bind j focus down
+bind u focus up
+

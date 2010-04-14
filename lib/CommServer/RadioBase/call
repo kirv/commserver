@@ -311,12 +311,13 @@ if ( $see_target ) {
     }
 else {
     log_steps("sending 'NO_PROMPT_SEEN' to client");
-    print "NO_PROMPT_SEEN\r\n";
+  # print "NO_PROMPT_SEEN\r\n";
     log_steps("quitting");
     push @call_summary, 'no';
     log_call_summary();
     set_property( '@state', 'failed');
     set_property( '@last-elapsed', time - $t0);
+    print "NO_PROMPT_SEEN\r\n";
     die "bye!\n";
     }
 
@@ -367,10 +368,11 @@ sub timed_out {
     push @call_summary, "timed_out:$msg";
     log_call_summary();
     log_steps("expect() timed out: $msg for $tag at " . localtime_hms());
-    print "ABORTING CONNECTION\r\n";
+  # print "ABORTING CONNECTION\r\n";
     $exp->send("\e\e"); # send escapes in case in radio setup mode
     set_property( '@state', 'timeout');
     set_property( '@last-elapsed', time - $t0);
+    print "ABORTING CONNECTION\r\n";
     die qq(expect() timed out: $msg\n);
     }
 
