@@ -312,7 +312,8 @@ if ( $see_target ) {
 else {
     log_steps("sending 'NO_PROMPT_SEEN' to client");
   # print "NO_PROMPT_SEEN\r\n";
-    log_steps("quitting");
+  # log_steps("quitting");
+    log_steps("quitting at " . localtime_hms());
     push @call_summary, 'no';
     log_call_summary();
     set_property( '@state', 'failed');

@@ -1,7 +1,12 @@
 #!/bin/bash
 
+# check for option
+test -n "$1" && test $1 == --no-count && NO_COUNT=1
+
 count=0
 for lock in */@LOCK; do
+
+    test "$lock" == "*/@LOCK" && continue
 
     count=$(($count+1))
     contents=( $(cat $lock 2>/dev/null) ) || continue
@@ -22,8 +27,7 @@ for lock in */@LOCK; do
     printf "$target\n"
 done
 
-# printf "%d locks inspected\n" $count
-echo $count
+test -n "$NO_COUNT" || printf "%d locks\n" $count
 
 # for lock in */@LOCK; do
 #   # printf "%-16s " ${lock%/*}

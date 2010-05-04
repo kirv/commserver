@@ -2,6 +2,8 @@
 
 usage="lock-route [--max-hops NUMBER] [-h|--help] [TAG]"
 
+tob=/usr/local/bin/tob
+
 set -o noclobber
 
 lock_route () {
@@ -61,7 +63,7 @@ main () {
         exit 0
         }
     echo "${route[@]}" >| @LOCK
-    log-route | tob log.store
+    log-route | $tob log.store
     }
 
 while test -n "$1"; do

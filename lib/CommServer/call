@@ -181,6 +181,8 @@ touch -d @$future $site/q-TIMEOUT
 test -n "$priority" && touch $site/q-PRIORITY=$priority
 
 # now set link to site object in spool:
+# ... but first check that it's not already there!
+test -L .q-spool/$id && error site $site is already in spool on 2nd check
 ln -s ../$site .q-spool/$id
 
 # make sure the queue manager is running:
@@ -208,6 +210,7 @@ test -n "$notify" && {
     now=$(date +%s)
     future=$(($now+10))
     touch -d @$future $site/q-TIMEOUT
+    test -L .q-notified/$id && error site $site already notified queue
     ln -s ../$site .q-notified/$id
     echo PASSED
     exit 0

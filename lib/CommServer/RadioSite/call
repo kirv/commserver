@@ -35,6 +35,8 @@ main () {
 
 main
 
+tob $self.unlock-route
+
 exit
 
 NAME

@@ -2,11 +2,20 @@
 
 usage="unlock-route [-h] [--help] [TAG]"
 
+tob=/usr/local/bin/tob
+
+test -n "$VERBOSE" && {
+    printf "\t%s (%s): VERBOSE is set\n" ${TOB_object##*/} $(<@id) >> /tmp/verbosity.txt
+    }
+
 unlock-route () {
-    for node in $(cat @LOCK); do
+    for node in $(<@LOCK); do
         test -n "$tag" && {
-            test "$(<$node/@LOCK)" == $tag ||
+            test "$(<$node/@LOCK)" == $tag || {
+                contents=$(<$node/@LOCK)
+                printf "%s lock contains '%s', not '%s'\n" $node $contents $tag >&2
                 return 1
+                }
             }
         rm $node/@LOCK || {
             nolock="$nolock ${node##*/}"
@@ -15,7 +24,8 @@ unlock-route () {
             }
         n=$(($n + 1))
         nodes="$nodes ${node##*/}"
-        test -n "$VERBOSE" && printf " ${node##*/}"
+        test -n "$VERBOSE" &&
+            printf "\t(tag %s) unlocked %s\n" $tag ${node##*/}
     done
     return 0
     }
@@ -31,7 +41,7 @@ main () {
     unset mplural
     unlock-route && rm @LOCK && n=$(($n + 1)) || {
         test $n -gt 1 && nplural=s
-        echo failed to remove lock$nplural in $node$nplural | tob log.store
+        echo failed to remove lock$nplural in $node$nplural | $tob log.store
         return 1
         }
     test $n -gt 1 && nplural=s
@@ -41,7 +51,7 @@ main () {
         msg="$msg, missing $m lock$mplural:$nolock"
         }
     test -n "$NOLOG" ||
-        echo $msg | tob log.store
+        echo $msg | $tob log.store
     }
 
 while test -n "$1"; do
