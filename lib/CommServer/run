@@ -115,7 +115,7 @@ process_queue() { # return value: 0 if empty, else 1
         age=0
       # test -e $site/@session &&
       #     age=$(($now - $(stat -c %Y $site/@session)))
-        test -e $site/@last-session-end-time &&
+        test -s $site/@last-session-end-time &&
             age=$(($now - $(<$site/@last-session-end-time)))
         # convert age to crude/approximate logarithmic value:
         test $age -lt 0 && age=0
