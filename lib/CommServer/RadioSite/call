@@ -22,14 +22,15 @@ main () {
     t0=$(date +%s)
     echo tob $base.call "${options[@]}" $radio $repeaters
     tob $base.call "${options[@]}" $radio $repeaters
-    elapsed=$(( $(date +%s) - $t0 ))
+    t1=$(date +%s)
     test -s $base/\@session && {
-        date +%s > @last-session-end-time
-        tee < $base/\@session \@session | tob sessions.store
+        echo $t1 > @last-session-end-time
+        cp $base/\@session \@session
+        test -d sessions && tob sessions.store < \@session &
         }
     tob $self.unlock-route --no-log $id &&
         trap - EXIT TERM
-    printf "%ds to call %s via %s and path <%s>\n" $elapsed $id $base "$repeaters" |
+    printf "%ds to call %s via %s and path <%s>\n" $((t1-t0)) $id $base "$repeaters" |
         tob log.store
     }
 
