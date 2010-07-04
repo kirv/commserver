@@ -1,73 +1,33 @@
 #!/bin/bash
 
-usage="unlock-route [-h] [--help] [TAG]"
+usage="unlock-route [-h] [--help]"
 
 tob=/usr/local/bin/tob
 
-test -n "$VERBOSE" && {
-    printf "\t%s (%s): VERBOSE is set\n" ${TOB_object##*/} $(<@id) >> /tmp/verbosity.txt
-    }
-
-unlock-route () {
-    for node in $(<@LOCK); do
-        test -n "$tag" && {
-            test "$(<$node/@LOCK)" == $tag || {
-                contents=$(<$node/@LOCK)
-                printf "%s lock contains '%s', not '%s'\n" $node $contents $tag >&2
-                return 1
-                }
-            }
-        rm $node/@LOCK || {
-            nolock="$nolock ${node##*/}"
-            m=$(($m + 1))
-            continue
-            }
-        n=$(($n + 1))
-        nodes="$nodes ${node##*/}"
-        test -n "$VERBOSE" &&
-            printf "\t(tag %s) unlocked %s\n" $tag ${node##*/}
-    done
-    return 0
-    }
-
-main () {
-    test -e @LOCK || exit 3
-    test -s @LOCK || exit 2
-    nodes=""
-    nolock=""
-    n=0
-    m=0
-    unset nplural
-    unset mplural
-    unlock-route && rm @LOCK && n=$(($n + 1)) || {
-        test $n -gt 1 && nplural=s
-        echo failed to remove lock$nplural in $node$nplural | $tob log.store
-        return 1
-        }
-    test $n -gt 1 && nplural=s
-    msg="removed $n lock$nplural: $nodes ${TOB_object##*[./]}"
-    test -n "$nolock" && {
-        test $m -gt 1 && mplural=s
-        msg="$msg, missing $m lock$mplural:$nolock"
-        }
-    test -n "$NOLOG" ||
-        echo $msg | $tob log.store
-    }
-
-while test -n "$1"; do
-    tag=$1 && shift
-    if test $tag == --no-log; then
-        unset tag
-        NOLOG=1
-    elif test $tag == -h; then
-        echo "$usage"
+unset tag
+test -n "$1" && {
+    test $1 == --help && exec awk '/^NAME/{ok=1}ok{print}' $0  
+    test $1 == -h && {
+        printf "usage: %s\n" "$usage"
         exit 0
-    elif test $tag == --help; then
-        exec awk '/^NAME/{ok=1}ok{print}' $0  
-    fi
-done
+        }
+    tag=$1
+    test $tag == $(<@id) ||
+        printf "tag %s does not match node id %s\n" $tag "$(<@id)"
+    }
 
-main
+test -e @LOCK || exit 3  # lock file does not exist
+test -s @LOCK || exit 2  # lock file is empty
+nodes=($(<@LOCK) .)
+locks=(${nodes[@]/%/\/@LOCK})
+rm -f ${locks[@]} || {
+    printf "failed to remove lock(s) for %s\n" "$(<@id)" >&2
+    for node in "${nodes[@]}"; do
+        test -e $node/@LOCK && 
+            printf "\t%s lock remains\n" "$(<$node/@id)" >&2
+    done
+    exit 1
+    }
 
 exit
 
