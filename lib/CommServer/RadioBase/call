@@ -6,7 +6,8 @@ use warnings;
 use Expect;
 use FreeWave_Radio::Callbook;
 
-use constant DEFAULT_PROMPT_RETRIES => 20;
+use constant PROMPT_RETRIES_BASE => 10;
+use constant PROMPT_RETRIES_MULT => 5;
 
 # use constant CALL_SUMMARY_FILE => "/var/local/log/commserver-call-summary-new";
 use constant CALL_SUMMARY_FILE => '@call-summary';
@@ -18,7 +19,7 @@ my $time_connect;
 my @call_summary;
 
 my $prompt;
-my $retries = DEFAULT_PROMPT_RETRIES;
+my $retries;
 my $tag;
 
 while ( $ARGV[0] =~ m/^-/ ) {
@@ -34,6 +35,8 @@ while ( $ARGV[0] =~ m/^-/ ) {
         }
     elsif ( $opt eq '--retries' ) {
         $retries = shift;
+        die "--retries $retries not an integer value >=0\n"
+            unless $retries >= 0;
         }
     else {
         die "unknown option: $opt\n";
@@ -90,6 +93,9 @@ for my $node ( @route ) {
         or die "invalid repeater radio number: $number\n";
     push @repeater, $number;
     }
+
+$retries = PROMPT_RETRIES_BASE + PROMPT_RETRIES_MULT * scalar @repeater
+    unless $retries;
 
 my $rep_path = "@repeater";
 
