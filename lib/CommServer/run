@@ -98,8 +98,9 @@ process_queue() { # return value: 0 if empty, else 1
             continue
             }
     
-        # workaround bug that .q/site.foo has to be .q.site.foo:
+        # work around bug that .q/site.foo has to be .q.site.foo:
         tsite=${site/\//.}
+
         # aquire a route or skip this site:
         route=$($tob $tsite.lock-route --release probe)
         test -n "$route" || continue
