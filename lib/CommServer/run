@@ -13,6 +13,8 @@ exec 0>&- 1>.@OUT 2>.@ERR
 error() { echo "$@" >&2 && exit 1; }
 
 tob=/usr/local/bin/tob
+debugfile=/tmp/commserver-run-debug
+printf "%s.%s starting up...\n" $TOB_object $TOB_method > $debugfile
 
 queue=.q
 spool=.q-spool
@@ -22,25 +24,38 @@ test -e : -o -e .: && {
     rcfile=.: && test -e : && rcfile=: # rc file : supersedes .:
     unset ok
     while read -r tag value; do
-        test ${tag:0:1} == '[' && {
+        test "${tag:0:1}" == '[' && {
             block=$tag
             continue
             }
-        test "$block" == "[$TOB_method]" || continue
+        test "$block" == '[run]' || continue
         value=${value#*=}
+        value=${value## }
+        printf "config: tag={%s} value={%s}\n" "$tag" "$value" >> $debugfile
         case $tag in
             sleep_sec) sleep_sec=${sleep_sec:-$value};;
             random_mod) random_mod=${random_mod:-$value};;
             random_ofs) random_ofs=${random_ofs:-$value};;
-            *) error unknown attribute: $tag;;
+            use_lock_route) use_lock_route=${use_lock_route:-$value};;
+            '') true;; # ignore blank line
+            *) error "unknown attribute: {$tag}";;
         esac
     done < "$rcfile"
     }
 
 test -n "$sleep_sec" || sleep_sec=2
 
+# set maximum radio hops (4 repeaters max):
+max_hops=5
+
 # echo ok 1
 
+printf "%s = {%s}\n" >> $debugfile \
+    sleep_sec "$sleep_sec" \
+    random_mod "$random_mod" \
+    random_ofs "$random_ofs" \
+    use_lock_route "$use_lock_route"
+    
 process_spool() { # move sites into queue unless delay, return 0 if empty
     delayed=0
     despooled=0
@@ -81,6 +96,56 @@ process_spool() { # move sites into queue unless delay, return 0 if empty
 
 # echo ok 1a
 
+declare -A available
+
+check_node() { # see if node is available for connections, encode in a hash
+    local node=$1
+    echo check_node $node >> $debugfile
+    test ${node:0:1} != / && {
+        # node is relative, so also check the absolute or canonical form:
+        local canonical=$(readlink -f $node)
+        test -n ${available[$canonical]} || check_node $canonical # recurse!
+        available[$node]=${available[$canonical]}
+        test "$ready" == y && return 0 # note that global 'ready' was set in recursed fn
+        return 1
+        }
+    # node is absolute, so check the node attributes and store y or n:
+    ready=n
+    test -e $node/radio-power=ON -a ! -e $node/@LOCK && ready=y
+    available[$node]=$ready
+    test $ready == y && return 0
+    return 1
+    }
+
+choose_route() { # given a site, find an available route
+    site=$1
+    echo choose_route $site >> $debugfile
+    case ${available[$site]} in
+        y)  true;;
+        n)  false;;
+        '') check_node $site || false
+    esac || return 1
+    ## assert: the site is powered and not locked, so iterate its @routes list to find a route
+    local max_hops=$max_hops
+    test -e $site/@max-hops && max_hops=$(<$site/@max-hops) ## bad! should check tob attribute...
+    test -e $site/@routes || return 2 ## return value 2 means: no routes defined for site
+    ## 
+    unset route
+    while read -a rt; do
+        ${#rt[@]} -gt $max_hops && continue # too many hops, try next route ...
+        for node in ${rt[@]}; do
+            case ${available[$node]} in
+                n)  continue 2;;
+                '') check_node $node || continue 2
+            esac
+        done
+        ## assert: all nodes in this route are available
+        route=(${rt[@]}) # chosen route is in array variable route
+        return 0
+    done < $site/@routes
+    return 1
+    }
+
 process_queue() { # return value: 0 if empty, else 1
     choices=()
     n=0
@@ -102,7 +167,14 @@ process_queue() { # return value: 0 if empty, else 1
         tsite=${site/\//.}
 
         # aquire a route or skip this site:
-        route=$($tob $tsite.lock-route --release probe)
+        if test "$use_lock_route" == 1; then
+            route=$($tob $tsite.lock-route --release probe)
+        else
+            test -n "${available[$site]}" || check_node $site
+            test "${available[$site]}" == y || continue
+            choose_route $site || continue
+        fi
+
         test -n "$route" || continue
 
         # calculate one or more metrics based on the route...
