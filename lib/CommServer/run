@@ -31,7 +31,6 @@ test -e : -o -e .: && {
         test "$block" == '[run]' || continue
         value=${value#*=}
         value=${value## }
-        printf "config: tag={%s} value={%s}\n" "$tag" "$value" >> $debugfile
         case $tag in
             sleep_sec) sleep_sec=${sleep_sec:-$value};;
             random_mod) random_mod=${random_mod:-$value};;
@@ -50,7 +49,7 @@ max_hops=5
 
 # echo ok 1
 
-printf "%s = {%s}\n" >> $debugfile \
+printf "\t%s = {%s}\n" >> $debugfile \
     sleep_sec "$sleep_sec" \
     random_mod "$random_mod" \
     random_ofs "$random_ofs" \
@@ -100,11 +99,11 @@ declare -A available
 
 check_node() { # see if node is available for connections, encode in a hash
     local node=$1
-    echo check_node $node >> $debugfile
+  # echo check_node $node >> $debugfile
     test ${node:0:1} != / && {
         # node is relative, so also check the absolute or canonical form:
         local canonical=$(readlink -f $node)
-        printf "\tcanonical: %s\n" "$canonical" >> $debugfile
+      # printf "\tcanonical: %s\n" "$canonical" >> $debugfile
         test -n "${available[$canonical]}" || check_node $canonical # recurse!
         available[$node]=${available[$canonical]}
         test "${available[$node]}" == y && return 0
@@ -118,7 +117,7 @@ check_node() { # see if node is available for connections, encode in a hash
 choose_route() { # given a site, find first available route
     site=$1
     test -e $site/@routes || return 2 ## return value 2 means: no routes defined for site
-    echo choose_route $site >> $debugfile
+  # echo choose_route $site >> $debugfile
     case ${available[$site]} in
         y)  true;;
         n)  false;;
@@ -248,6 +247,14 @@ check_notify_pool() { # check candidates for timeout
 
 # echo ok 1c
 
+check_base_nodes() { # return false unless at least one base is available
+    test -d .bases || return 2
+    for base in .bases/*; do
+        test -e $base/radio-power=ON -a ! -e $base/@LOCK && return 0
+    done
+    return 1
+    }
+
 date +%s > .@START
 
 loops=0
@@ -271,6 +278,8 @@ while true; do
     process_queue; scan_queue=$?
     check_notify_pool; scan_notified=$?
     
+    available=()
+
     # exit values from the above will be 0 when directory is empty, i.e. done
     test $scan_spool == 0 -a $scan_queue == 0 -a $scan_notified == 0 && {
         elapsed=$(($(date +%s)-$(<.@START)))
