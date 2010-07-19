@@ -3,53 +3,65 @@
 # check for option
 test -n "$1" && test $1 == --no-count && NO_COUNT=1
 
+synopsis="server.show-locks [--no-count] [--help]"
+
+while test -n "$1"; do 
+    arg=$1 && shift
+    case $arg in
+        --no-count)
+            NO_COUNT=1
+            ;;
+        --help)
+            exec awk '/^NAME/,0{print}' $0
+            ;;
+        *)  printf "unknown argument: %s; synopsis:\n\t%s\n" $arg "$synopsis" >&2
+            exit 1
+            ;;
+    esac
+done
+
 count=0
 for lock in */@LOCK; do
-
-    test "$lock" == "*/@LOCK" && continue
+    test "${lock:0:1}" == \* && continue
 
     count=$(($count+1))
-    contents=( $(cat $lock 2>/dev/null) ) || continue
-    test "$contents" == probe && continue
 
-    test -d "$contents" || continue
-    test ${contents:0:1} == "/" || continue
-  # test "${contents#*/}" == "$contents" && continue
+    # read contents of lock file into array var contents
+    contents=( $(<$lock) )
 
+    # skip lock file unless first entry points to a node:
+    test ${contents:0:1} == "/" -a -d "$contents" || continue
+
+    nodelist=()
     for node in "${contents[@]}"; do
         tag=${node##*/}
         test -e $node/@id && tag=$(<$node/@id)
-        printf "%-12s --> " $tag
+        nodelist=(${nodelist[@]} $tag)
     done
 
-    target=$(<${lock%/*}/@id)
-
-    printf "$target\n"
+    test -n "$NO_COUNT" || printf "%d " $((${#nodelist[@]}+1))
+    printf "%s --> " ${nodelist[@]}
+    printf "%s\n" $(<${lock%/*}/@id)
 done
 
 test -n "$NO_COUNT" || printf "%d locks\n" $count
 
-# for lock in */@LOCK; do
-#   # printf "%-16s " ${lock%/*}
-#     contents=$(cat $lock 2>/dev/null) || {
-#         # handles case where lock has already disappeared:
-#         printf "%-16s ?\n" "${lock%/*}"
-#         continue
-#         }
-#     test "$contents" == probe && {
-#         # ignore probes for locks by server.run method:
-#         continue
-#         }
-#     printf "%-16s " ${lock%/*}
-#     n=0
-#     for node in $contents; do
-#         test $n -gt 0 && printf " -> "
-#         tag=${node##*/}
-#         test -e $node/@id && tag=$(<$node/@id)
-#         printf "%s" $tag
-#         n=$(($n+1))
-#     done
-#     test $n -gt 1 && printf " -> "
-#     printf "\n"
-# done
+exit
 
+NAME
+    CommServer.show-locks
+SYNOPSIS
+    server.show-locks [--no-count] [--help]
+DESCRIPTION
+    Server management utility to show active locks, listing them from base to
+    target, and showing a total count of locks at the end.
+OPTIONS
+    --no-count
+        ommit counts from output
+    --help
+        show this page
+BUGS
+    Target nodes with symlinks/aliases are not identified, so those locks are
+    shown and counted more than once.
+AUTHOR
+    ken.irving@alaska.edu 2010
