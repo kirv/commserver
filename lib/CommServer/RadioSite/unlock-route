@@ -4,6 +4,7 @@ usage="unlock-route [-h] [--help] [TAG]"
 
 tob=/usr/local/bin/tob
 errlog=/tmp/unlock-route-errors
+test -e $errlog || echo initialize $errlog >> $errlog
 
 while test -n "$1" -a "${1:0:1}" == '-'; do
     opt=$1 && shift
@@ -37,18 +38,19 @@ locks=(${nodes[@]/%/\/@LOCK})
 ##      rm: cannot remove `foo': No such file or directory
 ##      rm: cannot remove `bar': Is a directory
 status=0
+now=$(date +%d-%H:%M)
 while read rm_error; do
     case "${rm_error##*: }" in
 
         'No such file or directory')
-            printf "unlock %s (no file): {%s}\n" "$(<@id)" "$rm_error"
-            printf "unlock %s: {%s}\n" "$(<@id)" "$rm_error" >> $errlog
+            printf "%s %s (no file): {%s}\n" $now "$(<@id)" "$rm_error"
+            printf "%s %s: {%s}\n" $now "$(<@id)" "$rm_error" >> $errlog
             # leave status at 0 for this
             ;;
 
         'Is a directory')
-            printf "unlock %s (directory): {%s}\n" "$(<@id)" "$rm_error"
-            printf "unlock %s: {%s}\n" "$(<@id)" "$rm_error" >> $errlog
+            printf "%s %s (directory): {%s}\n" $now "$(<@id)" "$rm_error"
+            printf "%s %s: {%s}\n" $now "$(<@id)" "$rm_error" >> $errlog
             status=1
             ;;
 
@@ -57,8 +59,8 @@ while read rm_error; do
             ;;
 
         *) status=1
-            printf "unlock %s (other): {%s}\n" "$(<@id)" "$rm_error"
-            printf "unlock %s: {%s}\n" "$(<@id)" "$rm_error" >> $errlog
+            printf "%s %s (other): {%s}\n" $now "$(<@id)" "$rm_error"
+            printf "%s %s: {%s}\n" $now "$(<@id)" "$rm_error" >> $errlog
             status=1
             ;;
     esac
