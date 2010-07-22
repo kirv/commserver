@@ -22,9 +22,9 @@ for lock in */@LOCK; do
     count=$(($count+1))
 
     # read contents of lock file into array var contents
-    contents=( $(<$lock) ) || continue 
+    contents=( $(<$lock) ) 2>/dev/null || continue 
 
-    # skip lock file unless first entry points to a node:
+    # skip lock file unless first entry is an absolute path to a node:
     test ${contents:0:1} == "/" -a -d "$contents" || continue
 
     nodelist=()
