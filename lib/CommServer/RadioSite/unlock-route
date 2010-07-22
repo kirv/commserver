@@ -26,7 +26,7 @@ unset tag
 test -n "$1" && {
     tag=$1
     test $tag == $(<@id) ||
-        printf "tag '%s' does not match node id '%s'\n" $tag "$(<@id)" >&2
+        printf "tag '%s' does not match node id '%s'\n" $tag "$(<@id)" >> $errlog
     }
 
 test -e @LOCK || exit 3  # lock file does not exist

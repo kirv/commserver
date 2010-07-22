@@ -2,55 +2,65 @@
 
 self=.
 tob=/usr/local/bin/tob
-
 id=$(<@id)
+
 test -s @LOCK || $tob $self.lock-route $id || exit
-trap "$tob $self.unlock-route" EXIT TERM
-route=$(<@LOCK)
-base=${route%% *}
-repeaters=${route#* }
+trap "$tob $self.unlock-route $id" EXIT TERM
+repeaters=($(<@LOCK))
+base=$repeaters
+unset repeaters[0]
 echo $base > @base
-echo $repeaters > @route
-test "$repeaters" == $base &&{
-    unset repeaters
-    >@route
-    }
+echo "${repeaters[@]}" > @route
 radio=$(<@radio)
 options=( --tag "$id" )
-TOB_get_attr \@prompt && options=( "${options[@]}" --prompt $attr )
+TOB_get_attr \@prompt  && options=( "${options[@]}" --prompt  $attr )
 TOB_get_attr \@retries && options=( "${options[@]}" --retries $attr )
 t0=$(date +%s)
-echo $tob $base.call "${options[@]}" $radio $repeaters
-$tob $base.call "${options[@]}" $radio $repeaters
+$tob $base.call "${options[@]}" $radio "${repeaters[@]}"
+result=$?
 t1=$(date +%s)
-test -s $base/\@session && {
-    echo $t1 > @last-session-end-time
-    cp $base/\@session \@session
-    test -d sessions && $tob sessions.store < \@session &
-    }
-tob $self.unlock-route $id &&
-    trap - EXIT TERM
-printf "%ds to call %s via %s and path <%s>\n" $((t1-t0)) $id $base "$repeaters" |
-    $tob log.store
 
-test -e @LOCK && {
-    echo failed to unlock-route for $id the first time ... >&2
-    $tob $self.unlock-route
+test $result || {
+    printf "failed(%d) in %ds via %s %s\n" \
+        $result $((t1-t0)) ${base##*/} "${repeaters[*]##*/}" | $tob log.store &
+    exit $result
     }
 
+test -e $base/@session || {
+    printf "no data in %ds via %s %s\n" \
+        $((t1-t0)) ${base##*/} "${repeaters[*]##*/}" | $tob log.store &
+    exit
+    }
+
+ln -f $base/@session @session
+
+printf "%dB in %ds via %s %s\n" \
+    $(stat -c %s @session) $((t1-t0)) \
+    ${base##*/} "${repeaters[*]##*/}" | $tob log.store &
+
+# note that trap command will release locks on exit
 exit
 
 NAME
     call -- initiate a connection to this radio site
+
+DESCRIPTION
+    A route must either already be locked for the site, or a lock will
+    aquired using the lock-route method.  The RadioBase.call method is 
+    then invoked on the locked base node.  When the base call method returns, 
+    its @session property is copied to the site object, and archived if
+    the sessions timeseries object exists.  A log message for the session
+    is written to the site log object.
+    
+    A trap is set to unlock the route on exit, and is relied upon to do so.
+
+    The route to the site is read from the lock file, parsed, and written
+    to site properties @base and @route.
 
 EXIT VALUES
     0 -- success
     1 -- some failure occurred
     2 -- failed, no route to site
     3 -- site radio is not powered
-
-DESCRIPTION
-    Invoke lock-route to secure a route, then invoke the call method on the
-    selected base radio.
 
 

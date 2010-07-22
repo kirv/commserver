@@ -10,9 +10,11 @@ DESCRIPTION
     least) is not intended to be instantiated.
 
 CLASSES
-    RadioSite -- radio node with links to other sites
-    RadioBase -- radio node with access via Internet or other means
-    RadioLink -- contained in a site, represents links to another site
+    CommServer -- manage a :wq
+ 
+    CommServer.RadioSite -- radio node with links to other sites
+    CommServer.RadioBase -- radio node with access via Internet or other means
+    CommServer.RadioLink -- contained in a site, represents links to another site
 
 SEE ALSO
     CommServer/RadioSite, CommServer/RadioBase, CommServer/RadioLink
