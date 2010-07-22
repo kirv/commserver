@@ -34,7 +34,7 @@ test -e : -o -e .: && {
             random_mod) random_mod=${random_mod:-$value};;
             random_ofs) random_ofs=${random_ofs:-$value};;
             '') true;; # ignore blank line
-            *) error "unknown attribute: {$tag}";;
+            *) error "unknown attribute in $rcfile: {$tag}";;
         esac
     done < "$rcfile"
     }
@@ -43,8 +43,6 @@ test -n "$sleep_sec" || sleep_sec=2
 
 # set maximum radio hops (4 repeaters max):
 max_hops=5
-
-# echo ok 1
 
 process_spool() { # move sites into queue unless delay, return 0 if empty
     delayed=0
@@ -83,8 +81,6 @@ process_spool() { # move sites into queue unless delay, return 0 if empty
     test $despooled -gt 0 && return 2
     return 1
     }
-
-# echo ok 1a
 
 declare -A available
 
@@ -198,8 +194,6 @@ process_queue() { # return value: 0 if empty, else 1
     return 1
     }
 
-# echo ok 1b
-
 check_notify_pool() { # check candidates for timeout
     for site in .q-notified/*; do
     
@@ -226,8 +220,6 @@ check_notify_pool() { # check candidates for timeout
     return 1
     }
 
-# echo ok 1c
-
 check_base_nodes() { # return false unless at least one base is available
     test -d .bases || return 2
     for base in .bases/*; do
@@ -246,8 +238,6 @@ notified_tmouts=0
 while true; do
     # quit if the pid file is not set
     test -s .@PID || error pid file .@PID was removed or reset
-
-  # echo ok 2
 
     date +%s > .@NOW
     now=$(<.@NOW)
@@ -272,8 +262,6 @@ while true; do
         exit 0
         }
 
-  # echo ok 3
-
     loops=$(($loops + 1))
 
   # echo something is in the spool or queue
@@ -282,7 +270,6 @@ while true; do
         sleep $sleep_sec && continue
         }
     
-  # echo ok 4
     # sort choices and select the one with the greatest value:
     choice=$(printf "%s\n" "${choices[@]}" | sort -n | tail -n 1)
 
@@ -293,7 +280,6 @@ while true; do
     printf "SELECT %s from %d choices, %ds\n" \
         $choice ${#choices[@]} $(($(date +%s)-$now))
 
-  # echo ok 5
     site=${choice#*-}
     test -e $site || error ERROR: $site not found
 
