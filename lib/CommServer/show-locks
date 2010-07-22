@@ -1,16 +1,10 @@
 #!/bin/bash
 
-# check for option
-test -n "$1" && test $1 == --no-count && NO_COUNT=1
-
-synopsis="server.show-locks [--no-count] [--help]"
+synopsis="server.show-locks [--help]"
 
 while test -n "$1"; do 
     arg=$1 && shift
     case $arg in
-        --no-count)
-            NO_COUNT=1
-            ;;
         --help)
             exec awk '/^NAME/,0{print}' $0
             ;;
@@ -23,6 +17,7 @@ done
 count=0
 for lock in */@LOCK; do
     test "${lock:0:1}" == \* && continue
+    test -e $lock || continue # lock may have been released...
 
     count=$(($count+1))
 
@@ -39,29 +34,32 @@ for lock in */@LOCK; do
         nodelist=(${nodelist[@]} $tag)
     done
 
-    test -n "$NO_COUNT" || printf "%d " $((${#nodelist[@]}+1))
+    printf "%d " $((${#nodelist[@]}+1))
     printf "%s --> " ${nodelist[@]}
     printf "%s\n" $(<${lock%/*}/@id)
 done
 
-test -n "$NO_COUNT" || printf "%d locks\n" $count
+printf "%d locks\n" $count
 
 exit
 
 NAME
     CommServer.show-locks
+
 SYNOPSIS
-    server.show-locks [--no-count] [--help]
+    server.show-locks [--help]
+
 DESCRIPTION
     Server management utility to show active locks, listing them from base to
     target, and showing a total count of locks at the end.
+
 OPTIONS
-    --no-count
-        ommit counts from output
     --help
         show this page
+
 BUGS
     Target nodes with symlinks/aliases are not identified, so those locks are
     shown and counted more than once.
+
 AUTHOR
     ken.irving@alaska.edu 2010
