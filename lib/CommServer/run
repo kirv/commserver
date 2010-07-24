@@ -221,6 +221,22 @@ check_notify_pool() { # check candidates for timeout
     return 1
     }
 
+check_locks() { # release lock if the pid value it contains is not active
+    for lock in .q-lock/*; do
+        test "${lock: -1:1}" == '*' && return 0 
+        test -e /proc/$(<$lock) && continue
+        site=${lock##*/}
+        test -e $site/@LOCK || { # already unlocked
+            rm $lock
+            continue
+            }
+        $tob $site.unlock-route
+        printf "stale: %s.unlock-route returned %s\n" $site $?
+        rm $lock
+        stale=$((stale+1))
+    done
+    }
+
 check_base_nodes() { # return false unless at least one base is available
     test -d .bases || return 2
     for base in .bases/*; do
@@ -236,6 +252,7 @@ passed=0
 queued=0
 tmouts=0
 notified_tmouts=0
+stale=0
 while true; do
     # quit if the pid file is not set
     test -s .@PID || error pid file .@PID was removed or reset
@@ -247,6 +264,7 @@ while true; do
 
     choices=()
     process_spool; scan_spool=$?
+    check_locks
     process_queue; scan_queue=$?
     check_notify_pool; scan_notified=$?
     
@@ -255,10 +273,10 @@ while true; do
     # exit values from the above will be 0 when directory is empty, i.e. done
     test $scan_spool == 0 -a $scan_queue == 0 -a $scan_notified == 0 && {
         elapsed=$(($(date +%s)-$(<.@START)))
-        printf "%s.%s exiting after %d/%d passed/queued, %d+%d timeouts, %d loops, %ds\n" \
-            $TOB_object $TOB_method $passed $queued $tmouts $notified_tmouts $loops $elapsed
-        printf "%d passed, %d queued, %d q-tmout, %d n-tmout, %d loops, %ds\n" \
-            $passed $queued $tmouts $notified_tmouts $loops $elapsed | \
+        printf "%s.%s exiting after %d/%d passed/queued, %d+%d timeouts, %d loops, %d stale, %ds\n" \
+            $TOB_object $TOB_method $passed $queued $tmouts $notified_tmouts $loops $stale $elapsed
+        printf "%d passed, %d queued, %d q-tmout, %d n-tmout, %d loops, %d stale, %ds\n" \
+            $passed $queued $tmouts $notified_tmouts $loops $stale $elapsed | \
             $tob $self.log.store
         exit 0
         }

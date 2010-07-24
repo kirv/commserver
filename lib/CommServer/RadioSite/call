@@ -16,6 +16,7 @@ options=( --tag "$id" )
 TOB_get_attr \@prompt  && options=( "${options[@]}" --prompt  $attr )
 TOB_get_attr \@retries && options=( "${options[@]}" --retries $attr )
 t0=$(date +%s)
+echo $$ > /var/local/site-comm/.q-lock/$id
 $tob $base.call "${options[@]}" $radio "${repeaters[@]}"
 result=$?
 t1=$(date +%s)
