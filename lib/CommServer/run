@@ -132,6 +132,7 @@ choose_route() { # given a site, find first available route
 process_queue() { # return value: 0 if empty, else 1
     unset choice maxweight
     n=0
+    weights=()
     for site in $queue/*; do
     
         id="${site#*/}"
@@ -187,7 +188,9 @@ process_queue() { # return value: 0 if empty, else 1
         test -n "$maxweight" || maxweight=$((sum-1))
 
         n=$((n+1))
+        weights=(${weights[@]} $sum)
         test $sum -gt $maxweight || continue
+        maxweight=$sum
         choice=$site
 
     done
@@ -287,8 +290,8 @@ while true; do
         continue
         }
     
-    printf "SELECT (%d) %s from %d choices, %ds\n" \
-        $maxweight $choice $n $(($(date +%s)-now))
+    printf "SELECT (%d) %s from %d choices, %ds (%s)\n" \
+        $maxweight $choice $n $(($(date +%s)-now)) "${weights[*]}"
 
     test -e $choice || error ERROR: $choice not found
 
