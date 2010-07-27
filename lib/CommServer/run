@@ -222,17 +222,17 @@ check_notify_pool() { # check candidates for timeout
     }
 
 check_locks() { # release lock if the pid value it contains is not active
-    for lock in .q-lock/*; do
-        test "${lock: -1:1}" == '*' && return 0 
-        test -e /proc/$(<$lock) && continue
-        site=${lock##*/}
+    for lockpid in .q-lock/*; do
+        test "${lockpid: -1:1}" == '*' && return 0 
+        test -e /proc/$(<$lockpid) && continue
+        site=${lockpid##*/}
         test -e $site/@LOCK || { # already unlocked
-            rm $lock
+            rm $lockpid
             continue
             }
         $tob $site.unlock-route
         printf "stale: %s.unlock-route returned %s\n" $site $?
-        rm $lock
+        rm $lockpid
         stale=$((stale+1))
     done
     }
@@ -290,7 +290,14 @@ while true; do
         }
     
     # sort choices and select the one with the greatest value:
-    choice=$(printf "%s\n" "${choices[@]}" | sort -n | tail -n 1)
+    choice=$choices
+    maxweight=${choice%%-*}
+    for candidate in ${choices[@]}; do
+        weight=${candidate%%-*}
+        test $weight -gt $maxweight || continue
+        maxweight=$weight
+        choice=$candidate
+    done
 
   # echo SELECT $choice from ${#choices[@]} choices \(loop $loops\)
   # rate100=$((${#choices[@]} * 100 / $(($(date +%s)-$now))
