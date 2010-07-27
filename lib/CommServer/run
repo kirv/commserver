@@ -130,7 +130,7 @@ choose_route() { # given a site, find first available route
     }
 
 process_queue() { # return value: 0 if empty, else 1
-    choices=()
+    unset choice maxweight
     n=0
     for site in $queue/*; do
     
@@ -184,13 +184,12 @@ process_queue() { # return value: 0 if empty, else 1
         test -n "$random_mod" &&
             sum=$(( $sum + $RANDOM % $random_mod + $random_ofs ))
     
-        # prevent values < 0 in case of trouble with leading - sign:
-        test $sum -lt 0 && sum=0
+        test -n "$maxweight" || maxweight=$((sum-1))
 
-      # echo METRIC-SITE: $sum-$site
-      # choices="$choices $sum-$site"
-        choices[$n]=$sum-$site
-        n=$(($n+1))
+        n=$((n+1))
+        test $sum -gt $maxweight || continue
+        choice=$site
+
     done
     return 1
     }
@@ -262,9 +261,9 @@ while true; do
 
   # process_spool && process_queue && check_notify_pool && exit 0
 
-    choices=()
     process_spool; scan_spool=$?
     check_locks
+    # process_queue() will make a choice if possible:
     process_queue; scan_queue=$?
     check_notify_pool; scan_notified=$?
     
@@ -283,50 +282,34 @@ while true; do
 
     loops=$(($loops + 1))
 
-  # echo something is in the spool or queue
-    test -n "$choices" || {
-      # echo sleep...
-        sleep $sleep_sec && continue
+    test -n "$choice" || {
+        sleep $sleep_sec
+        continue
         }
     
-    # sort choices and select the one with the greatest value:
-    choice=$choices
-    maxweight=${choice%%-*}
-    for candidate in ${choices[@]}; do
-        weight=${candidate%%-*}
-        test $weight -gt $maxweight || continue
-        maxweight=$weight
-        choice=$candidate
-    done
+    printf "SELECT (%d) %s from %d choices, %ds\n" \
+        $maxweight $choice $n $(($(date +%s)-now))
 
-  # echo SELECT $choice from ${#choices[@]} choices \(loop $loops\)
-  # rate100=$((${#choices[@]} * 100 / $(($(date +%s)-$now))
-  # len=${#rate100}
+    test -e $choice || error ERROR: $choice not found
+
+    tsite=${choice/\//.}
     
-    printf "SELECT %s from %d choices, %ds\n" \
-        $choice ${#choices[@]} $(($(date +%s)-$now))
-
-    site=${choice#*-}
-    test -e $site || error ERROR: $site not found
-
-    tsite=${site/\//.}
-    
-    id=$(<$site/@id)
+    id=$(<$choice/@id)
     $tob $tsite.lock-route $id || {
         # should have worked, so just bail and better luck next time
-        echo failed to aquire route to $site... >&2
+        echo failed to aquire route to $choice... >&2
         sleep $sleep_sec
         continue
         } 
 
-    # ASSERT: the route to $site is locked, ready to go!
+    # ASSERT: the route to $choice is locked, ready to go!
     # should we check that this route is the same as the one checked above? Nah.
     
-    touch $site/q-PASSED
+    touch $choice/q-PASSED
     
     # remove site from queue:
-    rm $site || error failed to dequeue $site...
-  # echo dequeued: $site
+    rm $choice || error failed to dequeue $choice...
+  # echo dequeued: $choice
     passed=$(($passed+1))
 
     sleep $sleep_sec
