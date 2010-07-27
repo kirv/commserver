@@ -291,7 +291,7 @@ while true; do
         }
     
     printf "SELECT (%d) %s from %d choices, %ds (%s)\n" \
-        $maxweight $choice $n $(($(date +%s)-now)) "${weights[*]}"
+        $maxweight ${choice##*/} $n $(($(date +%s)-now)) "${weights[*]}"
 
     test -e $choice || error ERROR: $choice not found
 
