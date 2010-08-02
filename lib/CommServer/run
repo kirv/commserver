@@ -234,7 +234,6 @@ check_locks() { # release lock if the pid value it contains is not active
             }
         $tob $site.unlock-route
         printf "stale: %s.unlock-route returned %s\n" $site $?
-        rm $lockpid
         stale=$((stale+1))
     done
     }
