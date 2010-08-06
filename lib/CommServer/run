@@ -212,8 +212,12 @@ check_notify_pool() { # check candidates for timeout
         s=$(readlink -f $site)
         rm $site
         notified_tmouts=$(($notified_tmouts+1))
-        $tob $s.unlock-route $id
-        
+        $tob $s.unlock-route $id || {
+            msg="$site: $s.unlock-route $id exited with $?"
+            printf "%s\n" >> /tmp/commserver-run-q-notified-error "$msg"
+            warn $msg
+            }
+            
       # echo timeout: $site removed from notified, unlocked
 
         ## NOTE: the above may have/be a race condition, so needs work...
@@ -228,12 +232,16 @@ check_locks() { # release lock if the pid value it contains is not active
         test "${lockpid: -1:1}" == '*' && return 0 
         test -e /proc/$(<$lockpid) && continue
         site=${lockpid##*/}
+
+
+
         test -e $site/@LOCK || { # already unlocked
             rm $lockpid
             continue
             }
         $tob $site.unlock-route
         printf "stale: %s.unlock-route returned %s\n" $site $?
+        printf "stale: %s.unlock-route returned %s\n" $site $? >> /tmp/commserver-run-stale
         stale=$((stale+1))
     done
     }
