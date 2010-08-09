@@ -17,21 +17,13 @@ while test -n "$1" -a "${1:0:1}" == '-'; do
     opt=$1 && shift
     case $opt in
         --notify)
-            notify=1
-            ;;
+            notify=1;;
         --notified)
-            notified=1
-            ;;
-        --debug)
-            debug=1
-            ;;
+            notified=1;;
         --help)
-            awk '/^NAME$/{ok=1}ok{print}' $0
-            exit 0
-            ;;
-        -h) echo $(basename $0) [--notified|-h|--help] [SITE [SITE_OPTIONS]]       
-            exit 0
-            ;;
+            exec awk '/^NAME$/{ok=1}ok{print}' $0;;
+        -h) echo $(basename $0) [--notify|--notified|-h|--help] [SITE [SITE_OPTIONS]]       
+            exit 0;;
         *)  error unknown option: $opt;;
     esac
 done
@@ -111,7 +103,7 @@ while test -n "${query[$i]}"; do
             ;;
 
         --priority)
-            i=$(($i+1))
+            i=$((i+1))
             priority=${query[$i]}
             ;;
 
@@ -120,7 +112,7 @@ while test -n "${query[$i]}"; do
             ;;
 
         --timeout)
-            i=$(($i+1))
+            i=$((i+1))
             timeout=${query[$i]}
             ;;
 
@@ -129,19 +121,20 @@ while test -n "${query[$i]}"; do
             ;;
 
         --delay)
-            i=$(($i+1))
+            i=$((i+1))
             delay=${query[$i]}
             ;;
 
         *)  error unknown option: ${query[$i]}
             ;;
     esac
-    i=$(($i+1))
+    i=$((i+1))
 done
 
 # site @id attribute should be unique, so use for link name:
+test -e "$site/@id" || error no $site/@id attribute found
 id=$(<$site/@id)
-test -n "$id" || error no @id attribute in $site
+test -n "$id" || error failed to read from $site/@id attribute
 
 if test -e .q-notified/$id; then
     # link exists, so check for --notified...
@@ -169,13 +162,13 @@ rm $site/q-* 2> /dev/null
 
 now=$(date +%s)
 test -n "$delay" && test $delay -gt 0 && {
-    future=$(($now+$delay))
+    future=$((now+delay))
     touch -d @$future $site/q-DELAY
     }
 
 test -n "$timeout" || error missing required timeout value
 # TODO: check that $timeout and $delay are integer values!!
-future=$(($now+$delay+$timeout))
+future=$((now+delay+timeout))
 touch -d @$future $site/q-TIMEOUT
 
 test -n "$priority" && touch $site/q-PRIORITY=$priority
@@ -198,17 +191,14 @@ until test -e $site/q-PASSED -o -e $site/q-FAILED; do
     sleep 1
 done
 
-test -e $site/q-FAILED && {
-    echo FAILED
-    exit 1
-    }
+test -e $site/q-FAILED && echo FAILED && exit 1
 
 # check that passed attribute is actually set, just in case:
 test -e $site/q-PASSED || error should not happen
 
 test -n "$notify" && {
     now=$(date +%s)
-    future=$(($now+10))
+    future=$((now+10))
     touch -d @$future $site/q-TIMEOUT
     test -L .q-notified/$id && error site $site already notified queue
     ln -s ../$site .q-notified/$id
