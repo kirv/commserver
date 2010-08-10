@@ -4,7 +4,6 @@ error() { echo "$@" >&2; exit 1; }
 
 tob=/usr/local/bin/tob
 self=.
-spool=.q-spool
 
 # default values for options:
 timeout=60
@@ -12,19 +11,17 @@ delay=0
 unset notify
 unset notified
 
+synopsis="$(basename $0) [--notify|--notified|-h|--help] [SITE [SITE_OPTIONS]]"
+
 # parse and handle command line options:
 while test -n "$1" -a "${1:0:1}" == '-'; do
     opt=$1 && shift
     case $opt in
-        --notify)
-            notify=1;;
-        --notified)
-            notified=1;;
-        --help)
-            exec awk '/^NAME$/{ok=1}ok{print}' $0;;
-        -h) echo $(basename $0) [--notify|--notified|-h|--help] [SITE [SITE_OPTIONS]]       
-            exit 0;;
-        *)  error unknown option: $opt;;
+        --notify)   notify=1;;
+        --notified) notified=1;;
+        --help)     exec awk '/^NAME$/{ok=1}ok{print}' $0;;
+        -h)         echo $synopsis && exit 0;;
+        *)          error unknown option: $opt;;
     esac
 done
 
@@ -211,7 +208,7 @@ exec $tob $site.call
 exit 0
 
 NAME
-    CommServer.call -- dialog to queue a site to call
+    CommServer.call -- request a site to call
 
 DESCRIPTION
     Adds the specified site to the queue spool, then runs the
