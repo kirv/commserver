@@ -89,7 +89,7 @@ check_node() { # see if node is available for connections, encode in a hash
     local node=$1
     test ${node:0:1} != / && {
         # node is relative, so also check the absolute or canonical form:
-        local canonical=$(readlink -f $node)
+        local canonical=$(/bin/readlink -f $node)
         test -n "${available[$canonical]}" || check_node $canonical # recurse!
         available[$node]=${available[$canonical]}
         test "${available[$node]}" == y && return 0
@@ -198,30 +198,38 @@ process_queue() { # return value: 0 if empty, else 1
     }
 
 check_notify_pool() { # check candidates for timeout
-    for site in .q-notified/*; do
+    for q_site in .q-notified/*; do
     
-        id=${site##*/}
+        id=${q_site##*/}
         test "$id" == '*' && return 0
     
-      # echo notified: $site
-    
-        # leave site in queue unless timeout has expired:
-        test $site/q-TIMEOUT -nt .@NOW && continue
+        # leave site in queue if timeout has not expired:
+        test $q_site/q-TIMEOUT -nt .@NOW && continue
 
         # timeout has expired, so unlock route and remove site from pool
-        s=$(readlink -f $site)
-        rm $site
+
+        s=$(/bin/readlink -f $q_site)
+        rm $q_site
         notified_tmouts=$((notified_tmouts+1))
+
+        errlog=/tmp/commserver-run-q-notified-error
+        tmstamp=$(date +%j:%H:%M:%S)
+
+        test -e $s/@radio || {
+            msg=$(printf "%s: %s did not resolve as sote object from %s\n" \
+                $tmstamp $s $q_site)
+            echo "$msg" >> $errlog
+            warn "$msg"
+            }
+
         $tob $s.unlock-route $id || {
-            msg="$site: $s.unlock-route $id exited with $?"
-            printf "%s\n" >> /tmp/commserver-run-q-notified-error "$msg"
-            warn $msg
+            msg=$(printf "%s: %-24s: %s.unlock-route %s exited with %d\n" \
+                $tmstamp $q_site $s $id $?)
+            echo "$msg" >> $errlog
+            warn "$msg"
             }
             
-      # echo timeout: $site removed from notified, unlocked
-
-        ## NOTE: the above may have/be a race condition, so needs work...
-        ## we remove the link before unlocking the route... maybe that's ok?
+        ## NOTE: the above may still have a race condition...
     
     done
     return 1
