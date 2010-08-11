@@ -66,16 +66,16 @@ process_spool() { # move sites into queue unless delay, return 0 if empty
         # move site into queue if no delay attribute:
         test -e $site/q-DELAY || {
             mv $site $queue
-            queued=$(($queued+1))
-            despooled=$(($despooled+1))
+            queued=$((queued+1))
+            despooled=$((despooled+1))
             continue
             }
     
         # move site into queue if delay has expired:
         test $site/q-DELAY -nt .@NOW || {
             mv $site $queue
-            queued=$(($queued+1))
-            despooled=$(($despooled+1))
+            queued=$((queued+1))
+            despooled=$((despooled+1))
             continue
             }
     done
@@ -143,7 +143,7 @@ process_queue() { # return value: 0 if empty, else 1
             touch $site/q-FAILED
             rm $site
           # echo timeout: $site
-            tmouts=$(($tmouts+1))
+            tmouts=$((tmouts+1))
             continue
             }
     
@@ -162,7 +162,7 @@ process_queue() { # return value: 0 if empty, else 1
         # metric for number of hops over minimum:
         min_hops=1
         test -e $site/@min-hops && min_hops=$(<$site/@min-hops)
-        extra_hops=$(( (${#route[@]} - $min_hops) * 20 ))
+        extra_hops=$(( (${#route[@]} - min_hops) * 20 ))
     
         # age is time in seconds since last successful session:
         age=0
@@ -172,18 +172,18 @@ process_queue() { # return value: 0 if empty, else 1
         test $age -lt 0 && age=0
         age=$(( (${#age} - 1)* 10 + ${age:0:1} ))
     
-        sum=$(( $age - $extra_hops ))
+        sum=$(( age - extra_hops ))
     
         test -e $site/q-PRIORITY && 
-            sum=$(( $sum + $(<$site/q-PRIORITY) ))
+            sum=$(( sum + $(<$site/q-PRIORITY) ))
     
         test -e $site/q-PRIORITY=* && {
             value=$(ls $site/q-PRIORITY=*)
-            sum=$(( $sum + ${value#*=} ))
+            sum=$(( sum + ${value#*=} ))
             }
     
         test -n "$random_mod" &&
-            sum=$(( $sum + $RANDOM % $random_mod + $random_ofs ))
+            sum=$(( sum + RANDOM % random_mod + random_ofs ))
     
         test -n "$maxweight" || maxweight=$((sum-1))
 
@@ -205,13 +205,13 @@ check_notify_pool() { # check candidates for timeout
     
       # echo notified: $site
     
-        # move site into queue if delay has expired:
+        # leave site in queue unless timeout has expired:
         test $site/q-TIMEOUT -nt .@NOW && continue
 
         # timeout has expired, so unlock route and remove site from pool
         s=$(readlink -f $site)
         rm $site
-        notified_tmouts=$(($notified_tmouts+1))
+        notified_tmouts=$((notified_tmouts+1))
         $tob $s.unlock-route $id || {
             msg="$site: $s.unlock-route $id exited with $?"
             printf "%s\n" >> /tmp/commserver-run-q-notified-error "$msg"
@@ -290,7 +290,7 @@ while true; do
         exit 0
         }
 
-    loops=$(($loops + 1))
+    loops=$((loops + 1))
 
     test -n "$choice" || {
         sleep $sleep_sec
@@ -320,7 +320,7 @@ while true; do
     # remove site from queue:
     rm $choice || error failed to dequeue $choice...
   # echo dequeued: $choice
-    passed=$(($passed+1))
+    passed=$((passed+1))
 
     sleep $sleep_sec
 done
