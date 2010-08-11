@@ -133,18 +133,13 @@ test -e "$site/@id" || error no $site/@id attribute found
 id=$(<$site/@id)
 test -n "$id" || error failed to read from $site/@id attribute
 
-if test -e .q-notified/$id; then
-    # link exists, so check for --notified...
-    test -n "$notified" ||
-        error call $site missing --notified option
-    # waiting for notified request, got it, so do it:
-    rm .q-notified/$id
-    exec $tob $site.call
-else
-    # link does not exist, so make sure --notified was not given
-    test -n "$notified" &&
-        error $site not expecting notified contact
-fi
+test -n "$notified" && {
+    test -e .q-notified/$id || error site $site not in notified queue
+    rm .q-notified/$id && exec $tob $site.call
+    error failed to remove $id for $site from notified queue
+    }
+
+test -e .q-notified/$id && error call $site missing --notified option
 
 # echo DEBUG 2 $id
 
