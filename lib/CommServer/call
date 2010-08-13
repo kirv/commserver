@@ -132,6 +132,7 @@ done
 test -e "$site/@id" || error no $site/@id attribute found
 id=$(<$site/@id)
 test -n "$id" || error failed to read from $site/@id attribute
+id=${id// /_} # just in case: replace spaces with underscores, if any
 
 test -n "$notified" && {
     test -e .q-notified/$id || error site $site not in notified queue
@@ -170,6 +171,16 @@ test -n "$priority" && touch $site/q-PRIORITY=$priority
 test -L .q-spool/$id && error site $site is already in spool on 2nd check
 ln -s ../$site .q-spool/$id
 
+# check to make sure the link actually points to a site object:
+test -e .q-spool/$id/@radio || {
+    rm .q-spool/$id
+    msg=$(printf "%s: failed to resolve %s site object as %s\n" \
+            $(date +%j:%H:%M:%S) $site .q-spool/$id)
+    echo FAILED server error: $msg
+    echo $msg >> /tmp/commserver-call-error
+    error $msg
+    }
+
 # make sure the queue manager is running:
 (   set -C
     >.@PID && {
@@ -195,6 +206,15 @@ test -n "$notify" && {
     test -L .q-notified/$id && error site $site already notified queue
     ln -s ../$site .q-notified/$id
     echo PASSED
+    test -e .q-notified/$id/@radio || {
+        errlog=/tmp/commserver-run-q-notified-error
+        msg=$(printf "%s %s: %s symlink failed\n" \
+            $(date +%j:%H:%M:%S) $TOB_method .q-notified/$id)
+        echo "$msg" >> $errlog
+        stat .q-notified/$id >> $errlog
+        ls .q-notified/$id/ >> $errlog
+        ls $site/ >> $errlog
+        }
     exit 0
     }
 
