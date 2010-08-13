@@ -208,18 +208,28 @@ check_notify_pool() { # check candidates for timeout
 
         # timeout has expired, so unlock route and remove site from pool
 
+        # but first, prep a debug error log and messages...
+        errlog=/tmp/commserver-run-q-notified-error
+        tmstamp=$(date +%j:%H:%M:%S)
+
+        test -e $q_site/@radio || {
+            msg=$(printf "%s: %s is not a site object!\n" $tmstamp $q_site)
+            echo "$msg" >> $errlog
+            warn "$msg"
+            stat $q_site >> $errlog
+            ls $q_site/ >> $errlog
+            }
+
         s=$(/bin/readlink -f $q_site)
         rm $q_site
         notified_tmouts=$((notified_tmouts+1))
 
-        errlog=/tmp/commserver-run-q-notified-error
-        tmstamp=$(date +%j:%H:%M:%S)
-
         test -e $s/@radio || {
-            msg=$(printf "%s: %s did not resolve as sote object from %s\n" \
-                $tmstamp $s $q_site)
+            msg=$(printf "%s: %s does not resolve to a site object!\n" $tmstamp $s)
             echo "$msg" >> $errlog
             warn "$msg"
+            stat $s >> $errlog
+            ls $s/ >> $errlog
             }
 
         $tob $s.unlock-route $id || {
