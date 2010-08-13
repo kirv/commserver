@@ -1,6 +1,15 @@
 #!/bin/bash
 
-error() { echo "$@" >&2; exit 1; }
+error () {
+    test -n "$1" -a $1 == --exit && shift && exitvalue=$1 && shift
+    tmstamp=$(date --iso=sec)
+    printf "%s %s\n" $tmstamp "$*" >&2
+    # do not output to error log if --exit 1 is given:
+    test -n "$exitvalue" -a $exitvalue == 1 && exit 1
+    printf "%s %s\n" $tmstamp "$*" >> /tmp/commserver-call-error
+    # do not exit unless --exit N is given:
+    test -n "$exitvalue" && exit $exitvalue
+    }
 
 tob=/usr/local/bin/tob
 self=.
@@ -21,7 +30,7 @@ while test -n "$1" -a "${1:0:1}" == '-'; do
         --notified) notified=1;;
         --help)     exec awk '/^NAME$/{ok=1}ok{print}' $0;;
         -h)         echo $synopsis && exit 0;;
-        *)          error unknown option: $opt;;
+        *)          error --exit 11 unknown option: $opt;;
     esac
 done
 
@@ -79,7 +88,8 @@ test -d $site || { # site does not resolve directly, so try harder...
         site=$dir/$site
         break
     done
-    test -d $site || error no site: $site
+    test -d $site || error --exit 12 no site: $site
+    test $site != ${site#_/transition} && error resolved site as $site
     }
 
 # echo DEBUG 1 $site
@@ -122,31 +132,31 @@ while test -n "${query[$i]}"; do
             delay=${query[$i]}
             ;;
 
-        *)  error unknown option: ${query[$i]}
+        *)  error --exit 13 unknown option: ${query[$i]}
             ;;
     esac
     i=$((i+1))
 done
 
 # site @id attribute should be unique, so use for link name:
-test -e "$site/@id" || error no $site/@id attribute found
+test -e "$site/@id" || error --exit 14 no $site/@id attribute found
 id=$(<$site/@id)
-test -n "$id" || error failed to read from $site/@id attribute
+test -n "$id" || error --exit 15 failed to read from $site/@id attribute
 id=${id// /_} # just in case: replace spaces with underscores, if any
 
 test -n "$notified" && {
-    test -e .q-notified/$id || error site $site not in notified queue
+    test -e .q-notified/$id || error --exit 1 site $id $site is not in notified queue
     rm .q-notified/$id && exec $tob $site.call
-    error failed to remove $id for $site from notified queue
+    error --exit 17 failed to remove $id for $site from notified queue
     }
 
-test -e .q-notified/$id && error call $site missing --notified option
+test -e .q-notified/$id && error --exit 18 call $site missing --notified option
 
 # echo DEBUG 2 $id
 
 # check that the site isn't already in the spool or queue:
-test -d .q-spool/$id && error site $site is already spooled
-test -d .q/$id && error site $site is already queued
+test -d .q-spool/$id && error --exit 1 site $site is already spooled
+test -d .q/$id && error --exit 1 site $site is already queued
 
 # now set attributes in the site object for the spool and queue operations:
 
@@ -159,7 +169,7 @@ test -n "$delay" && test $delay -gt 0 && {
     touch -d @$future $site/q-DELAY
     }
 
-test -n "$timeout" || error missing required timeout value
+test -n "$timeout" || error --exit 21 missing required timeout value
 # TODO: check that $timeout and $delay are integer values!!
 future=$((now+delay+timeout))
 touch -d @$future $site/q-TIMEOUT
@@ -168,17 +178,14 @@ test -n "$priority" && touch $site/q-PRIORITY=$priority
 
 # now set link to site object in spool:
 # ... but first check that it's not already there!
-test -L .q-spool/$id && error site $site is already in spool on 2nd check
+test -L .q-spool/$id && error --exit 22 site $site is already in spool on 2nd check
 ln -s ../$site .q-spool/$id
 
 # check to make sure the link actually points to a site object:
 test -e .q-spool/$id/@radio || {
     rm .q-spool/$id
-    msg=$(printf "%s: failed to resolve %s site object as %s\n" \
-            $(date +%j:%H:%M:%S) $site .q-spool/$id)
-    echo FAILED server error: $msg
-    echo $msg >> /tmp/commserver-call-error
-    error $msg
+    echo FAILED
+    error --exit 23 failed to resolve $site site object as .q-spool/$id
     }
 
 # make sure the queue manager is running:
@@ -197,15 +204,17 @@ done
 test -e $site/q-FAILED && echo FAILED && exit 1
 
 # check that passed attribute is actually set, just in case:
-test -e $site/q-PASSED || error should not happen
+test -e $site/q-PASSED || error --exit 24 should not happen
 
 test -n "$notify" && {
     now=$(date +%s)
     future=$((now+10))
     touch -d @$future $site/q-TIMEOUT
-    test -L .q-notified/$id && error site $site already notified queue
+    test -L .q-notified/$id && error --exit 25 site $site already in notified queue
     ln -s ../$site .q-notified/$id
+    # inform client that the site can be called again with --notified
     echo PASSED
+    # check to make sure the link actually points to a site object:
     test -e .q-notified/$id/@radio || {
         errlog=/tmp/commserver-run-q-notified-error
         msg=$(printf "%s %s: %s symlink failed\n" \
