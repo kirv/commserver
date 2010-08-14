@@ -34,12 +34,11 @@ while test -n "$1" -a "${1:0:1}" == '-'; do
     esac
 done
 
-query=( call "$@" )
-unset query[0]
+# assume first that the query is specified on the command line:
+query=( call "$@" ) && unset query[0]
 
-# skip dialog if a non-option argument (the site to call) is present:
-# test -n "$1" || while read -a query -p "query: "; do
-test -n "$1" || { # no arguments given, so run query loop:
+# run query loop on stdin if query was not given on command line:
+test -n "$1" || {
     printf 'query: '
     while read -a query; do
         # special case: filter trailing \r character if present in last word:
@@ -65,11 +64,10 @@ test -n "$1" || { # no arguments given, so run query loop:
     done
     }
 
-site=${query[1]}
-test -n "$site" || error --exit 26 no site specified in query "<${query[*]}>"
-unset query[1]
+site=${query[1]} && unset query[1]
 
-# echo call $site with args: "${query[@]}" 
+# make sure site exists and is a radio site:
+test -n "$site" || error --exit 26 no site specified in query "<${query[*]}>"
 test -d "$site" || { # site does not resolve directly, so try harder...
     for dir in _ _/*; do
         test -d $dir/$site || continue
@@ -77,9 +75,9 @@ test -d "$site" || { # site does not resolve directly, so try harder...
         break
     done
     test -d $site || error --exit 12 no site: $site
+    # report sites found in the *temporary* _/transition/ tree:
     test $site != ${site#_/transition} && error resolved site as $site
     }
-
 test -e $site/@radio || error --exit 27 no radio found: $site/@radio
 
 # parse query:
