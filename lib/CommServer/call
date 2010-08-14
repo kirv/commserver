@@ -68,6 +68,7 @@ site=${query[1]} && unset query[1]
 
 # remap query, converting '--opt=val' options to '--opt val' form:
 query=(${query[@]//=/ }) # convert '--opt=val' options to '--opt val' form
+qrystr="call $site ${query[@]}"
 
 # parse query (note that some options may also have been on command line):
 i=0; while test -n "${query[i]}"; do
@@ -77,15 +78,16 @@ i=0; while test -n "${query[i]}"; do
         --priority)     ((i+=1)); priority=${query[i]} ;;
         --timeout)      ((i+=1)); timeout=${query[i]} ;;
         --delay)        ((i+=1)); delay=${query[i]} ;;
-        *)              error --exit 13 unknown option $i in "(${query[@]})";;
+        *)              error --exit 13 unknown option: ${query[i]} in "($qrystr)";;
     esac
     ((i+=1))
 done
 
-test -n "$notify" -a -n "$notified" && error 28 both --notify and --notified given
+test -n "$notify" -a -n "$notified" &&
+    error --exit 28 both --notify and --notified given in query "<$qrystr>"
 
 # make sure site exists and is a radio site:
-test -n "$site" || error --exit 26 no site specified in query "<${query[*]}>"
+test -n "$site" || error --exit 26 no site specified in query "($qrystr)"
 test -d "$site" || { # site does not resolve directly, so try harder...
     for dir in _ _/*; do
         test -d $dir/$site || continue
@@ -96,22 +98,17 @@ test -d "$site" || { # site does not resolve directly, so try harder...
     # report sites found in the *temporary* _/transition/ tree:
     test $site != ${site#_/transition} && error resolved site as $site
     }
-test -e $site/@radio || error --exit 27 no radio found: $site/@radio
+test -e $site/@radio || error --exit 27 no radio found as $site/@radio
 
-# site @id attribute should be unique, so use for link name:
-test -e "$site/@id" || error --exit 14 no id found: $site/@id
-id=$(<$site/@id)
-test -n "$id" || error --exit 15 failed to read from $site/@id
-id=${id// /_} # just in case: replace spaces with underscores, if any
+# use site name or @id attribute if available for link names:
+id=${site##*/}
+test -e "$site/@id" && id=$(<$site/@id)
+{id// /_} # just in case, replace any spaces with underscores
 
-
-## at this point, we've got variables site and id:
-##      site points to the radio site directly, 
-##      id will be used to name the site in the queues
+## assert: variable site points to a radio site, id can be used for link names
 
 ## if a callback is pending, the site is locked, and any but a callback
-## query should be ignored or failed.  Or the query can go into the spool
-## queue, perhaps, if there's room there.
+## query should fail.
 
 test -e .q-notified/$id && { # site is waiting for a callback
     test -n "$notified" || {
