@@ -43,7 +43,7 @@ test -n "$1" || {
     while read -a query; do
         # special case: filter trailing \r character if present in last word:
         i=$((${#query[@]}-1))
-        query[$i]=${query[$i]%$'\r'}
+        query[i]=${query[i]%$'\r'}
         cmd=$query
         unset query[0]
         case $cmd in
@@ -80,21 +80,20 @@ test -d "$site" || { # site does not resolve directly, so try harder...
     }
 test -e $site/@radio || error --exit 27 no radio found: $site/@radio
 
-# parse query:
-i=2 # skip entries 0 ('call') and 1 (the site)
-while test -n "${query[$i]}"; do
-    case ${query[$i]} in
+# remap query, converting '--opt=val' options to '--opt val' form:
+query=(${query[@]//=/ }) # convert '--opt=val' options to '--opt val' form
+
+# parse query (note that some options may also have been on command line):
+i=0; while test -n "${query[i]}"; do
+    case ${query[i]} in
         --notify)       notify=1 ;;
         --notified)     notified=1 ;;
-        --priority=*)   priority=${query[$i]#*=} ;;
-        --priority)     i=$((i+1)); priority=${query[$i]} ;;
-        --timeout=*)    timeout=${query[$i]#*=} ;;
-        --timeout)      i=$((i+1)); timeout=${query[$i]} ;;
-        --delay=*)      delay=${query[$i]#*=} ;;
-        --delay)        i=$((i+1)); delay=${query[$i]} ;;
-        *)              error --exit 13 unknown option: ${query[$i]} ;;
+        --priority)     ((i+=1)); priority=${query[i]} ;;
+        --timeout)      ((i+=1)); timeout=${query[i]} ;;
+        --delay)        ((i+=1)); delay=${query[i]} ;;
+        *)              error --exit 13 unknown option $i in "(${query[@]})";;
     esac
-    i=$((i+1))
+    ((i+=1))
 done
 
 # site @id attribute should be unique, so use for link name:
