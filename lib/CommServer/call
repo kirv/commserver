@@ -3,10 +3,10 @@
 error () {
     test -n "$1" -a $1 == --exit && shift && exitvalue=$1 && shift
     tmstamp=$(date --iso=sec)
-    printf "%s %s\n" $tmstamp "$*" >&2
+    printf "%s %s %s\n" $tmstamp ${exitvalue:--} "$*" >&2
     # do not output to error log if --exit 1 is given:
     test -n "$exitvalue" -a $exitvalue == 1 && exit 1
-    printf "%s %s\n" $tmstamp "$*" >> /tmp/commserver-call-error
+    printf "%s %s %s\n" $tmstamp ${exitvalue:--} "$*" >> /tmp/commserver-call-error
     # do not exit unless --exit N is given:
     test -n "$exitvalue" && exit $exitvalue
     }
@@ -79,10 +79,11 @@ test -n "$1" || { # no arguments given, so run query loop:
     }
 
 site=${query[1]}
+test -n "$site" || error --exit 26 no site specified in query "<${query[*]}>"
 unset query[1]
 
 # echo call $site with args: "${query[@]}" 
-test -d $site || { # site does not resolve directly, so try harder...
+test -d "$site" || { # site does not resolve directly, so try harder...
     for dir in _ _/*; do
         test -d $dir/$site || continue
         site=$dir/$site
@@ -185,6 +186,8 @@ ln -s ../$site .q-spool/$id
 test -e .q-spool/$id/@radio || {
     rm .q-spool/$id
     echo FAILED
+    error "STAT .q-spool/$id: $(/usr/bin/stat .q-spool/$id)"
+    error "READLINK -f .q-spool/$id: $(/bin/readlink -f .q-spool/$id)"
     error --exit 23 failed to resolve $site site object as .q-spool/$id
     }
 
