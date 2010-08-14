@@ -66,20 +66,6 @@ test -n "$1" || {
 
 site=${query[1]} && unset query[1]
 
-# make sure site exists and is a radio site:
-test -n "$site" || error --exit 26 no site specified in query "<${query[*]}>"
-test -d "$site" || { # site does not resolve directly, so try harder...
-    for dir in _ _/*; do
-        test -d $dir/$site || continue
-        site=$dir/$site
-        break
-    done
-    test -d $site || error --exit 12 no site: $site
-    # report sites found in the *temporary* _/transition/ tree:
-    test $site != ${site#_/transition} && error resolved site as $site
-    }
-test -e $site/@radio || error --exit 27 no radio found: $site/@radio
-
 # remap query, converting '--opt=val' options to '--opt val' form:
 query=(${query[@]//=/ }) # convert '--opt=val' options to '--opt val' form
 
@@ -95,6 +81,22 @@ i=0; while test -n "${query[i]}"; do
     esac
     ((i+=1))
 done
+
+test -n "$notify" -a -n "$notified" && error 28 both --notify and --notified given
+
+# make sure site exists and is a radio site:
+test -n "$site" || error --exit 26 no site specified in query "<${query[*]}>"
+test -d "$site" || { # site does not resolve directly, so try harder...
+    for dir in _ _/*; do
+        test -d $dir/$site || continue
+        site=$dir/$site
+        break
+    done
+    test -d $site || error --exit 12 no site: $site
+    # report sites found in the *temporary* _/transition/ tree:
+    test $site != ${site#_/transition} && error resolved site as $site
+    }
+test -e $site/@radio || error --exit 27 no radio found: $site/@radio
 
 # site @id attribute should be unique, so use for link name:
 test -e "$site/@id" || error --exit 14 no id found: $site/@id
