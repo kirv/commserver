@@ -3,10 +3,10 @@
 error () {
     test -n "$1" -a $1 == --exit && shift && exitvalue=$1 && shift
     tmstamp=$(date --iso=sec)
-    printf "%s %s %s\n" $tmstamp ${exitvalue:--} "$*" >&2
+    printf "%s %s %s\n" $tmstamp ${exitvalue:---} "$*" >&2
     # do not output to error log if --exit 1 is given:
     test -n "$exitvalue" -a $exitvalue == 1 && exit 1
-    printf "%s %s %s\n" $tmstamp ${exitvalue:--} "$*" >> /tmp/commserver-call-error
+    printf "%s %s %s\n" $tmstamp ${exitvalue:---} "$*" >> /tmp/commserver-call-error
     # do not exit unless --exit N is given:
     test -n "$exitvalue" && exit $exitvalue
     }
@@ -48,17 +48,10 @@ test -n "$1" || { # no arguments given, so run query loop:
         cmd=$query
         unset query[0]
         case $cmd in
-    
-            call)   break
-                    ;;
-    
-            ls)     ls "${query[@]}"
-                    ;;
-    
-            q|quit) echo goodbye!
-                    exit 0
-                    ;;
-    
+            call)   break ;;
+            ls)     ls "${query[@]}" ;;
+            q|quit) echo goodbye!; exit 0 ;;
+            help)   awk '/^NAME$/{ok=1}ok{print}' $0 ;;
             h)      printf "    %s\n" \
                         'call SITE [OPTIONS] -- queue site to call' \
                         'ls [...]           -- list commserver object contents' \
@@ -66,13 +59,7 @@ test -n "$1" || { # no arguments given, so run query loop:
                         'h                  -- show short help' \
                         'help               -- show man page'
                     ;;
-    
-            help)   awk '/^NAME$/{ok=1}ok{print}' $0
-                    ;;
-    
-            *)      printf "\a?\n"
-                    ;;
-    
+            *)      printf "\a?\n" ;;
         esac
         printf 'query: '
     done
@@ -93,57 +80,39 @@ test -d "$site" || { # site does not resolve directly, so try harder...
     test $site != ${site#_/transition} && error resolved site as $site
     }
 
-# echo DEBUG 1 $site
+test -e $site/@radio || error --exit 27 no radio found: $site/@radio
 
+# parse query:
 i=2 # skip entries 0 ('call') and 1 (the site)
 while test -n "${query[$i]}"; do
     case ${query[$i]} in
-        --notify)
-            notify=1
-            ;;
-
-        --notified)
-            notified=1
-            ;;
-
-        --priority=*)
-            priority=${query[$i]#*=}
-            ;;
-
-        --priority)
-            i=$((i+1))
-            priority=${query[$i]}
-            ;;
-
-        --timeout=*)
-            timeout=${query[$i]#*=}
-            ;;
-
-        --timeout)
-            i=$((i+1))
-            timeout=${query[$i]}
-            ;;
-
-        --delay=*)
-            delay=${query[$i]#*=}
-            ;;
-
-        --delay)
-            i=$((i+1))
-            delay=${query[$i]}
-            ;;
-
-        *)  error --exit 13 unknown option: ${query[$i]}
-            ;;
+        --notify)       notify=1 ;;
+        --notified)     notified=1 ;;
+        --priority=*)   priority=${query[$i]#*=} ;;
+        --priority)     i=$((i+1)); priority=${query[$i]} ;;
+        --timeout=*)    timeout=${query[$i]#*=} ;;
+        --timeout)      i=$((i+1)); timeout=${query[$i]} ;;
+        --delay=*)      delay=${query[$i]#*=} ;;
+        --delay)        i=$((i+1)); delay=${query[$i]} ;;
+        *)              error --exit 13 unknown option: ${query[$i]} ;;
     esac
     i=$((i+1))
 done
 
 # site @id attribute should be unique, so use for link name:
-test -e "$site/@id" || error --exit 14 no $site/@id attribute found
+test -e "$site/@id" || error --exit 14 no id found: $site/@id
 id=$(<$site/@id)
-test -n "$id" || error --exit 15 failed to read from $site/@id attribute
+test -n "$id" || error --exit 15 failed to read from $site/@id
 id=${id// /_} # just in case: replace spaces with underscores, if any
+
+
+## at this point, we've got variables site and id:
+##      site points to the radio site directly, 
+##      id will be used to name the site in the queues
+
+## if a callback is pending, the site is locked, and any but a callback
+## query should be ignored or failed.  Or the query can go into the spool
+## queue, perhaps, if there's room there.
 
 test -n "$notified" && {
     test -e .q-notified/$id || error --exit 1 site $id $site is not in notified queue
