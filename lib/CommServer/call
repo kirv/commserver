@@ -1,13 +1,13 @@
 #!/bin/bash
 
-error () {
+errorlog=/tmp/commserver-call-error
+
+error () { # exit only if --exit NUMBER is given, no output to log if NUMBER is 1
     test -n "$1" -a $1 == --exit && shift && exitvalue=$1 && shift
     tmstamp=$(date --iso=sec)
     printf "%s %s %s\n" $tmstamp ${exitvalue:---} "$*" >&2
-    # do not output to error log if --exit 1 is given:
     test -n "$exitvalue" -a $exitvalue == 1 && exit 1
-    printf "%s %s %s\n" $tmstamp ${exitvalue:---} "$*" >> /tmp/commserver-call-error
-    # do not exit unless --exit N is given:
+    printf "%s %s %s\n" $tmstamp ${exitvalue:---} "$*" >> $errorlog
     test -n "$exitvalue" && exit $exitvalue
     }
 
@@ -114,15 +114,14 @@ id=${id// /_} # just in case: replace spaces with underscores, if any
 ## query should be ignored or failed.  Or the query can go into the spool
 ## queue, perhaps, if there's room there.
 
-test -n "$notified" && {
-    test -e .q-notified/$id || error --exit 1 site $id $site is not in notified queue
+test -e .q-notified/$id && { # site is waiting for a callback
+    test -n "$notified" || {
+        echo FAILED callback pending for $id
+        error --exit 1 callback pending for $id, $site
+        }
     rm .q-notified/$id && exec $tob $site.call
     error --exit 17 failed to remove $id for $site from notified queue
     }
-
-test -e .q-notified/$id && error --exit 18 call $site missing --notified option
-
-# echo DEBUG 2 $id
 
 # check that the site isn't already in the spool or queue:
 test -d .q-spool/$id && error --exit 1 site $site is already spooled
