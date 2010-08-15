@@ -2,13 +2,12 @@
 # CommServer.run -- run the server, reading from .q-spool into .q until empty
 
 # exit if an instance is already running (pid file exists and is not stale):
-# test -s .@run-pid && exit 1
 test -s .@run-pid && test -d /proc/$(<.@run-pid) && exit 1
 trap 'rm .@run-pid' TERM EXIT
 echo $$ > .@run-pid
 
 # close stdin, redirect stdout and stderr to files:
-exec 0>&- 1>.@OUT 2>.@ERR
+exec 0>&- 1>.@run-out 2>.@run-err
 
 warn() { echo "$@" >&2; }
 error() { warn "$@" && exit 1; }
