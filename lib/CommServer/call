@@ -109,12 +109,12 @@ id=${id// /_} # just in case, replace any spaces with underscores
 ## if a callback is pending, the site is locked, and any but a callback
 ## query should fail.
 
-test -e .q-notified/$id && { # callback is pending for site, fail anything else
+test -e .q-callback/$id && { # callback is pending for site, fail anything else
     test -n "$notified" || { # --notified option was not passed
         echo FAILED callback pending for $id
         error --exit 11 callback pending for $id, $site
         }
-    rm .q-notified/$id && exec $tob $site.call
+    rm .q-callback/$id && exec $tob $site.call
     error --exit 17 failed to remove $id for $site from notified queue
     }
 
@@ -174,18 +174,18 @@ test -n "$notify" && {
     now=$(date +%s)
     future=$((now+10))
     touch -d @$future $site/q-TIMEOUT
-    test -L .q-notified/$id && error --exit 25 site $site already in notified queue
-    ln -s ../$site .q-notified/$id
+    test -L .q-callback/$id && error --exit 25 site $site already in notified queue
+    ln -s ../$site .q-callback/$id
     # inform client that the site can be called again with --notified
     echo PASSED
     # check to make sure the link actually points to a site object:
-    test -e .q-notified/$id/@radio || {
-        errlog=/tmp/commserver-run-q-notified-error
+    test -e .q-callback/$id/@radio || {
+        errlog=/tmp/commserver-run-q-callback-error
         msg=$(printf "%s %s: %s symlink failed\n" \
-            $(date +%j:%H:%M:%S) $TOB_method .q-notified/$id)
+            $(date +%j:%H:%M:%S) $TOB_method .q-callback/$id)
         echo "$msg" >> $errlog
-        stat .q-notified/$id >> $errlog
-        ls .q-notified/$id/ >> $errlog
+        stat .q-callback/$id >> $errlog
+        ls .q-callback/$id/ >> $errlog
         ls $site/ >> $errlog
         }
     exit 0

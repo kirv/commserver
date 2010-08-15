@@ -2,7 +2,7 @@
 
 usage="CommServer.init"
 
-mkdir .q .q-spool .q-notified
+mkdir .q .q-spool .q-callback
 tob-new --hide log TimeSeries
 
 
