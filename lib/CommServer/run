@@ -15,7 +15,6 @@ error() { warn "$@" && exit 1; }
 tob=/usr/local/bin/tob
 
 queue=.q
-spool=.q-spool
 
 # read settings from config file:
 test -e : -o -e .: && {
@@ -56,7 +55,7 @@ process_spool() { # move sites into queue unless delay, return 0 if empty
     
         # leave site in spool if also in queue:
         # ... NO ... drop it from the spool if that's the case
-        test -e $queue/$id && {
+        test -e .q/$id && {
             rm $site
             echo drop duplicate $site from spool
             continue
@@ -64,7 +63,7 @@ process_spool() { # move sites into queue unless delay, return 0 if empty
     
         # move site into queue if no delay attribute:
         test -e $site/q-DELAY || {
-            mv $site $queue
+            mv $site .q
             queued=$((queued+1))
             despooled=$((despooled+1))
             continue
@@ -72,7 +71,7 @@ process_spool() { # move sites into queue unless delay, return 0 if empty
     
         # move site into queue if delay has expired:
         test $site/q-DELAY -nt .@NOW || {
-            mv $site $queue
+            mv $site .q
             queued=$((queued+1))
             despooled=$((despooled+1))
             continue
@@ -132,7 +131,7 @@ process_queue() { # return value: 0 if empty, else 1
     unset choice maxweight
     n=0
     weights=()
-    for site in $queue/*; do
+    for site in .q/*; do
     
         id="${site#*/}"
         test "$id" == '*' && return 0 
