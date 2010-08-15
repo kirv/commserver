@@ -2,10 +2,10 @@
 # CommServer.run -- run the server, reading from .q-spool into .q until empty
 
 # exit if an instance is already running (pid file exists and is not stale):
-# test -s .@PID && exit 1
-test -s .@PID && test -d /proc/$(<.@PID) && exit 1
-trap 'rm .@PID' TERM EXIT
-echo $$ > .@PID
+# test -s .@run-pid && exit 1
+test -s .@run-pid && test -d /proc/$(<.@run-pid) && exit 1
+trap 'rm .@run-pid' TERM EXIT
+echo $$ > .@run-pid
 
 # close stdin, redirect stdout and stderr to files:
 exec 0>&- 1>.@OUT 2>.@ERR
@@ -282,7 +282,7 @@ notified_tmouts=0
 stale=0
 while true; do
     # quit if the pid file is not set
-    test -s .@PID || error pid file .@PID was removed or reset
+    test -s .@run-pid || error pid file .@run-pid was removed or reset
 
     date +%s > .@NOW
     now=$(<.@NOW)
