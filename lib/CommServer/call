@@ -153,8 +153,8 @@ ln -s ../$site .q-spool/$id
 # check to make sure the link actually points to a site object:
 test -e .q-spool/$id/@radio || {
     rm .q-spool/$id
-    error "READLINK -f .q-spool/$id: $(/bin/readlink -f .q-spool/$id)"
-    error --exit 23 failed to resolve $site site object as .q-spool/$id
+    error "LOCK: $(ls -l $site/@LOCK)"
+    error --exit 23 failed to resolve $site site via symlink: .q-spool/$id
     }
 
 # make sure the queue manager is running:
@@ -173,7 +173,7 @@ test -e $site/@call-passed || error --exit 24 should not happen
 
 # check that passed attribute contains this pid
 test $(<$site/@call-passed) == $$ ||
-    error --exit 30 call pid $(<$site/@call-passed) was chosen, not $$
+    error --exit 30 $id: pid $(<$site/@call-passed) was chosen, not $$
 
 # if a callback is requested, set a short timeout for it:
 test -n "$notify" && {
