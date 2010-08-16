@@ -60,7 +60,7 @@ process_spool() { # move sites into queue unless delay, return 0 if empty
             }
     
         # move site into queue if no delay attribute:
-        test -e $site/q-DELAY || {
+        test -e $site/call-delay || {
             mv $site .q
             queued=$((queued+1))
             despooled=$((despooled+1))
@@ -68,7 +68,7 @@ process_spool() { # move sites into queue unless delay, return 0 if empty
             }
     
         # move site into queue if delay has expired:
-        test $site/q-DELAY -nt .@NOW || {
+        test $site/call-delay -nt .@NOW || {
             mv $site .q
             queued=$((queued+1))
             despooled=$((despooled+1))
@@ -135,8 +135,8 @@ process_queue() { # return value: 0 if empty, else 1
         test "$id" == '*' && return 0 
     
         # remove site from queue if timeout has elapsed:
-        test $site/q-TIMEOUT -nt .@NOW || {
-            touch $site/q-FAILED
+        test $site/call-timeout -nt .@NOW || {
+            touch $site/call-failed
             rm $site
           # echo timeout: $site
             tmouts=$((tmouts+1))
@@ -170,11 +170,11 @@ process_queue() { # return value: 0 if empty, else 1
     
         sum=$(( age - extra_hops ))
     
-        test -e $site/q-PRIORITY && 
-            sum=$(( sum + $(<$site/q-PRIORITY) ))
+        test -e $site/call-priority && 
+            sum=$(( sum + $(<$site/call-priority) ))
     
-        test -e $site/q-PRIORITY=* && {
-            value=$(ls $site/q-PRIORITY=*)
+        test -e $site/call-priority=* && {
+            value=$(ls $site/call-priority=*)
             sum=$(( sum + ${value#*=} ))
             }
     
@@ -200,7 +200,7 @@ check_notify_pool() { # check candidates for timeout
         test "$id" == '*' && return 0
     
         # leave site in queue if timeout has not expired:
-        test $q_site/q-TIMEOUT -nt .@NOW && continue
+        test $q_site/call-timeout -nt .@NOW && continue
 
         # timeout has expired, so unlock route and remove site from pool
 
@@ -329,7 +329,7 @@ while true; do
     # ASSERT: the route to $choice is locked, ready to go!
     # should we check that this route is the same as the one checked above? Nah.
     
-    touch $choice/q-PASSED
+    touch $choice/call-passed
     
     # remove site from queue:
     rm $choice || error failed to dequeue $choice...

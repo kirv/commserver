@@ -5,7 +5,7 @@ tob=/usr/local/bin/tob
 id=$(<@id)
 
 test -s @LOCK || $tob $self.lock-route $id || exit
-trap "$tob $self.unlock-route $id" EXIT TERM
+trap "$tob $self.unlock-route $id; exit $?" EXIT TERM
 repeaters=($(<@LOCK))
 base=$repeaters
 unset repeaters[0]

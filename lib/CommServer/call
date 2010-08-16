@@ -17,8 +17,11 @@ self=.
 # default values for options:
 timeout=60
 delay=0
+priority=1
 unset notify
 unset notified
+
+start=$(date +%s)
 
 synopsis="$(basename $0) [--notify|--notified|-h|--help] [SITE [SITE_OPTIONS]]"
 
@@ -67,8 +70,8 @@ test -n "$1" || {
 site=${query[1]} && unset query[1]
 
 # remap query, converting '--opt=val' options to '--opt val' form:
-query=(${query[@]//=/ }) # convert '--opt=val' options to '--opt val' form
-qrystr="call $site ${query[@]}"
+query=(${query[@]//=/ })
+qrystr="call $site ${query[@]}" # prepare for output in error messages
 
 # parse query (note that some options may also have been on command line):
 i=0; while test -n "${query[i]}"; do
@@ -110,38 +113,32 @@ id=${id// /_} # just in case, replace any spaces with underscores
 ## query should fail.
 
 test -e .q-callback/$id && { # callback is pending for site, fail anything else
-    test -n "$notified" || { # --notified option was not passed
-        echo FAILED callback pending for $id
-        error --exit 11 callback pending for $id, $site
-        }
+    test -n "$notified" || error --exit 11 callback pending for $id, $site
     rm .q-callback/$id && exec $tob $site.call
     error --exit 17 failed to remove $id for $site from notified queue
     }
 
 test -n "$notified" && 
-    error --exit 29 invalid/late callback with --notified for $id
+    error --exit 29 invalid or late callback with --notified for $id
 
-# check that the site isn't already in the spool or queue:
+# fail if the site is already in the spool or the queue:
 test -d .q-spool/$id && error --exit 1 site $site is already spooled
 test -d .q/$id && error --exit 1 site $site is already queued
 
-# now set attributes in the site object for the spool and queue operations:
+# this shouldn't happen, but you never know, so quit if it does:
+test -e $site/@call-pid -a -d /proc/$(<$site/@call-pid) &&
+    error --exit 30 $site/@call-pid process $(<$site/@call-pid) still active
 
-# delete any existing queue attributes, with prefix 'q-', ignore errors:
-rm $site/q-* 2> /dev/null
+# set the spool attributes for use by the run method:
+echo $$ > $site/@call-pid
+touch -d @$((start+delay)) $site/call-delay
+touch -d @$((start+delay+timeout)) $site/call-timeout
+echo $priority > $site/@priority
 
-now=$(date +%s)
-test -n "$delay" && test $delay -gt 0 && {
-    future=$((now+delay))
-    touch -d @$future $site/q-DELAY
-    }
-
-test -n "$timeout" || error --exit 21 missing required timeout value
-# TODO: check that $timeout and $delay are integer values!!
-future=$((now+delay+timeout))
-touch -d @$future $site/q-TIMEOUT
-
-test -n "$priority" && touch $site/q-PRIORITY=$priority
+# remove old spool state attributes (only one should exist)
+for attr in $site/@{call-passed,call-failed}; do
+    test -e $attr && rm $attr
+done
 
 # now set link to site object in spool:
 # ... but first check that it's not already there!
@@ -152,7 +149,6 @@ ln -s ../$site .q-spool/$id
 test -e .q-spool/$id/@radio || {
     rm .q-spool/$id
     echo FAILED
-    error "STAT .q-spool/$id: $(/usr/bin/stat .q-spool/$id)"
     error "READLINK -f .q-spool/$id: $(/bin/readlink -f .q-spool/$id)"
     error --exit 23 failed to resolve $site site object as .q-spool/$id
     }
@@ -161,11 +157,19 @@ test -e .q-spool/$id/@radio || {
 ( set -C; >.@run-pid && { ($tob $self.run &); }; set +C;) 2>/dev/null
 
 # and WAIT for the queue manager to give a go or no-go:
-until test -e $site/q-PASSED -o -e $site/q-FAILED; do
+until test -e $site/@call-passed -o \
+           -e $site/@call-failed -o \
+           -e $site/@call-spool-failed; do
     sleep 1
 done
 
-test -e $site/q-FAILED && echo FAILED && exit 1
+# @call-spool-failed means that the site timed out of the spool
+test -e $site/@call-spool-failed && echo FAILED && exit 1
+
+# @call-failed means that the site timed out of the queue
+test -e $site/@call-spool-failed && echo FAILED && exit 1
+
+test -e $site/@call-failed && echo FAILED && exit 1
 
 # check that passed attribute is actually set, just in case:
 test -e $site/q-PASSED || error --exit 24 should not happen
@@ -173,7 +177,7 @@ test -e $site/q-PASSED || error --exit 24 should not happen
 test -n "$notify" && {
     now=$(date +%s)
     future=$((now+10))
-    touch -d @$future $site/q-TIMEOUT
+    touch -d @$future $site/call-timeout
     test -L .q-callback/$id && error --exit 25 site $site already in notified queue
     ln -s ../$site .q-callback/$id
     # inform client that the site can be called again with --notified
@@ -258,10 +262,20 @@ SPECIAL ATTRIBUTES
     The following files are created as attributes in the site object to
     communicate settings to other methods.
 
-    q-PRIORITY
-    q-DELAY
-    q-TIMEOUT
+    @call-pid
+    @call-priority
+    call-delay
+    call-timeout
+
+    The run method can create one of these in the object:
     
+    call-passed
+    call-failed
+
+PROTOCOL
+    CommServer.call validates what it can, and exits if the target site
+    is already represented in the server's 
+
 AUTHOR
     Ken.Irving@alaska.edu 2010
 
