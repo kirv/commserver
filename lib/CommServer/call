@@ -118,8 +118,8 @@ test -e .q-callback/$id && { # callback is pending for site, fail anything else
     error --exit 17 failed to remove $id for $site from notified queue
     }
 
-test -n "$notified" && 
-    error --exit 29 invalid or late callback for $id
+# the following error exit value was previously 29:
+test -n "$notified" && error --exit 1 invalid or late callback for $id
 
 # let the delay period expire...
 test -n "$delay" -a $delay -gt 0 && sleep $delay
@@ -153,7 +153,8 @@ ln -s ../$site .q-spool/$id
 # check to make sure the link actually points to a site object:
 test -e .q-spool/$id/@radio || {
     rm .q-spool/$id
-    error "LOCK: $(ls -l $site/@LOCK)"
+    error "LOCK: $(/bin/ls -l $site/@LOCK)"
+    error "PWD: $PWD"
     error --exit 23 failed to resolve $site site via symlink: .q-spool/$id
     }
 
