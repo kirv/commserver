@@ -41,39 +41,24 @@ test -n "$sleep_sec" || sleep_sec=2
 # set maximum radio hops (4 repeaters max):
 max_hops=5
 
-process_spool() { # move sites into queue unless delay, return 0 if empty
-    delayed=0
+process_spool() { # move sites into queue, return 0 if empty
     despooled=0
     for site in .q-spool/*; do
     
         id="${site##*/}"
         test "$id" == '*' && return 0
     
-      # echo spooled: $id
-    
-        # leave site in spool if also in queue:
-        # ... NO ... drop it from the spool if that's the case
+        # delete site in spool if also in the queue:
         test -e .q/$id && {
             rm $site
-            echo drop duplicate $site from spool
+            echo drop duplicate site $id from spool &>2
             continue
             }
     
-        # move site into queue if no delay attribute:
-        test -e $site/call-delay || {
-            mv $site .q
-            queued=$((queued+1))
-            despooled=$((despooled+1))
-            continue
-            }
-    
-        # move site into queue if delay has expired:
-        test $site/call-delay -nt .@NOW || {
-            mv $site .q
-            queued=$((queued+1))
-            despooled=$((despooled+1))
-            continue
-            }
+        mv $site .q
+        queued=$((queued+1))
+        despooled=$((despooled+1))
+   
     done
     test $despooled -gt 0 && return 2
     return 1
@@ -135,8 +120,11 @@ process_queue() { # return value: 0 if empty, else 1
         test "$id" == '*' && return 0 
     
         # remove site from queue if timeout has elapsed:
-        test $site/call-timeout -nt .@NOW || {
-            touch $site/call-failed
+        test $site/call-timeout -nt .@run-tick || {
+            test -e $site/@call-pid || {
+                echo no pid file in site object to fail: $site/@call-pid &>2
+                }
+            cp $site/@call-pid $site/@call-failed
             rm $site
           # echo timeout: $site
             tmouts=$((tmouts+1))
@@ -200,7 +188,7 @@ check_notify_pool() { # check candidates for timeout
         test "$id" == '*' && return 0
     
         # leave site in queue if timeout has not expired:
-        test $q_site/call-timeout -nt .@NOW && continue
+        test $q_site/call-timeout -nt .@run-tick && continue
 
         # timeout has expired, so unlock route and remove site from pool
 
@@ -268,7 +256,7 @@ check_base_nodes() { # return false unless at least one base is available
     return 1
     }
 
-date +%s > .@START
+date +%s > .@run-start
 
 loops=0
 passed=0
@@ -280,8 +268,8 @@ while true; do
     # quit if the pid file is not set
     test -s .@run-pid || error pid file .@run-pid was removed or reset
 
-    date +%s > .@NOW
-    now=$(<.@NOW)
+    date +%s > .@run-tick
+    now=$(<.@run-tick)
 
   # process_spool && process_queue && check_notify_pool && exit 0
 
@@ -295,7 +283,7 @@ while true; do
 
     # exit values from the above will be 0 when directory is empty, i.e. done
     test $scan_spool == 0 -a $scan_queue == 0 -a $scan_notified == 0 && {
-        elapsed=$(($(date +%s)-$(<.@START)))
+        elapsed=$(($(date +%s)-$(<.@run-start)))
         printf "%s.%s exiting after %d/%d passed/queued, %d+%d timeouts, %d loops, %d stale, %ds\n" \
             $TOB_object $TOB_method $passed $queued $tmouts $notified_tmouts $loops $stale $elapsed
         printf "%d passed, %d queued, %d q-tmout, %d n-tmout, %d loops, %d stale, %ds\n" \
@@ -329,7 +317,11 @@ while true; do
     # ASSERT: the route to $choice is locked, ready to go!
     # should we check that this route is the same as the one checked above? Nah.
     
-    touch $choice/call-passed
+    test -e $choice/@call-pid || {
+        echo no pid file in site object to pass: $choice/@call-pid &>2
+        exit 3
+        }
+    cp $choice/@call-pid $choice/@call-passed
     
     # remove site from queue:
     rm $choice || error failed to dequeue $choice...
@@ -351,8 +343,7 @@ DESCRIPTION
 
     The CommServer.call method provides the caller interface to this method,
     creating an object in the queue spool.  This method moves objects from
-    the spool into the queue, unless the optional delay interval has not 
-    elapsed.
+    the spool into the queue.
 
     Each object in the queue is evaluated along with the others, and one
     chosen...

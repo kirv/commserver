@@ -21,7 +21,7 @@ priority=1
 unset notify
 unset notified
 
-start=$(date +%s)
+start_time=$(date +%s)
 
 synopsis="$(basename $0) [--notify|--notified|-h|--help] [SITE [SITE_OPTIONS]]"
 
@@ -121,22 +121,27 @@ test -e .q-callback/$id && { # callback is pending for site, fail anything else
 test -n "$notified" && 
     error --exit 29 invalid or late callback with --notified for $id
 
+# let the delay period expire...
+test -n "$delay" -a $delay -gt 0 && sleep $delay
+
+## a note on three approaches: 
+##      1 -- simplest is to fail right here if server is busy with this site
+##      2 -- we could loop here, up to timeout, waiting for the server
+##      3 -- best would be to post site to spool with pid
+
+## choose option 1 for now, fix later
+
 # fail if the site is already in the spool or the queue:
 test -d .q-spool/$id && error --exit 1 site $site is already spooled
 test -d .q/$id && error --exit 1 site $site is already queued
 
-# this shouldn't happen, but you never know, so quit if it does:
-test -e $site/@call-pid -a -d /proc/$(<$site/@call-pid) &&
-    error --exit 30 $site/@call-pid process $(<$site/@call-pid) still active
-
 # set the spool attributes for use by the run method:
 echo $$ > $site/@call-pid
-touch -d @$((start+delay)) $site/call-delay
-touch -d @$((start+delay+timeout)) $site/call-timeout
-echo $priority > $site/@priority
+touch -d @$((start_time+timeout)) $site/call-timeout
+echo $priority > $site/@call-priority
 
-# remove old spool state attributes (only one should exist)
-for attr in $site/@{call-passed,call-failed}; do
+# remove old pass/fail attributes that run method will set:
+for attr in $site/@call-{passed,failed}; do
     test -e $attr && rm $attr
 done
 
@@ -148,7 +153,6 @@ ln -s ../$site .q-spool/$id
 # check to make sure the link actually points to a site object:
 test -e .q-spool/$id/@radio || {
     rm .q-spool/$id
-    echo FAILED
     error "READLINK -f .q-spool/$id: $(/bin/readlink -f .q-spool/$id)"
     error --exit 23 failed to resolve $site site object as .q-spool/$id
     }
@@ -157,23 +161,21 @@ test -e .q-spool/$id/@radio || {
 ( set -C; >.@run-pid && { ($tob $self.run &); }; set +C;) 2>/dev/null
 
 # and WAIT for the queue manager to give a go or no-go:
-until test -e $site/@call-passed -o \
-           -e $site/@call-failed -o \
-           -e $site/@call-spool-failed; do
+until test -e $site/@call-passed -o -e $site/@call-failed -o; do
     sleep 1
 done
 
-# @call-spool-failed means that the site timed out of the spool
-test -e $site/@call-spool-failed && echo FAILED && exit 1
-
-# @call-failed means that the site timed out of the queue
-test -e $site/@call-spool-failed && echo FAILED && exit 1
-
+# @call-failed means that the site timed out
 test -e $site/@call-failed && echo FAILED && exit 1
 
-# check that passed attribute is actually set, just in case:
-test -e $site/q-PASSED || error --exit 24 should not happen
+# check that passed attribute is actually still set, just in case:
+test -e $site/@call-passed || error --exit 24 should not happen
 
+# check that passed attribute contains this pid
+test $(<$site/@call-passed) == $$ ||
+    error --exit 30 call pid $(<$site/@call-passed) was chosen, not $$
+
+# if a callback is requested, set a short timeout for it:
 test -n "$notify" && {
     now=$(date +%s)
     future=$((now+10))
@@ -210,72 +212,4 @@ DESCRIPTION
     The method accepts a few command line options, and the command line
     can also be used to specify a site to query (and also options to that
     query) as an alternative to the query dialog.
-
-COMMAND LINE OPTIONS
-    --as-notified
-        must be specified in the call is in response to a previous call
-        requesting notification
-
-    -h
-        show brief synopsis, then exit
-    
-    --help
-        show this manpage, then exit
-    
-COMMANDS
-    Enter one of the following at the 'query:' prompt:
-
-    call SITE [--notify] [--priority NUMBER] [--timeout SECONDS] [--delay SECONDS]
-        check that site exists, create queue object in spool
-        see SITE OPTIONS below
-
-    ls [...]
-        list contents of commserver object
-
-    q
-    quit
-        exit with status 0
-
-    h
-        show brief synopsis
-
-    help
-        show manpage
-
-SITE OPTIONS
-    --notify
-        after site is chosen and a route locked, don't initiate connection
-        but notify client that a connection can be made
-    
-    --priority NUMBER
-        optional priority number to favor one site over another; no default
-    
-    --delay SECONDS
-        specify how long to leave site in the queue spool before moving
-        it to the active queue; default is 0 seconds
-
-    --timeout SECONDS
-        specify how long attempt to call should persist in queue
-        default is 60 seconds
-    
-SPECIAL ATTRIBUTES
-    The following files are created as attributes in the site object to
-    communicate settings to other methods.
-
-    @call-pid
-    @call-priority
-    call-delay
-    call-timeout
-
-    The run method can create one of these in the object:
-    
-    call-passed
-    call-failed
-
-PROTOCOL
-    CommServer.call validates what it can, and exits if the target site
-    is already represented in the server's 
-
-AUTHOR
-    Ken.Irving@alaska.edu 2010
 
