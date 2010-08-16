@@ -204,12 +204,59 @@ exit 0
 NAME
     CommServer.call -- request a site to call
 
-DESCRIPTION
-    Adds the specified site to the queue spool, then runs the
-    pick-site-to-call method which moves the site from the spool into
-    the queue.
+SYNOPSIS
+    commserver.call [OPTIONS] [QUERY]
 
-    The method accepts a few command line options, and the command line
-    can also be used to specify a site to query (and also options to that
-    query) as an alternative to the query dialog.
+DESCRIPTION
+    Providing a high level interface to the commserver, the call method
+    takes a request to call a site and places the site in the server's
+    input spool.  The run method moves the site from the input spool
+    into its queue, and evenutally fails or passes the request, after
+    which the call method resumes control.  If passed, a route was
+    also locked for the target site, so those resources are not available
+    for other processes.
+
+    After being passed by the CommServer.run method, CommServer.call
+    invokes the target site's RadioSite.call method or, if --notify was
+    given, places site in the 'callback' queue and exits.
+
+    If a callback is pending, any CommServer.call on the site lacking
+    the --notified option will fail.  If --notified is given, the site
+    is removed from the callback queue and RadioSite.call is invoked.
+
+DUAL INTERFACE
+    CommServer.call currently accepts queries fully specified on the
+    command line, but it also will run a query dialog if no command
+    line query is found.  (See also BUGS, below!)
+
+    An application of the query dialog uses the /etc/inetd.conf 
+    facility to accept connections from network hosts.  Three different
+    ports can be configured, one to invoke call with no options, one
+    with the --notify option, and one with --notified..
+
+OPTIONS
+    --notify
+    --notified
+    --priority N -- N is any integer, higher wins
+    --timeout N  -- N in seconds before call query will time out and fail
+    --delay N    -- N in seconds before query is acted on
+
+QUERY DIALOG
+    A prompt is displayed to the client, and several commands can
+    be used:
+
+        call SITE [--notify] [--priority N] [--timeout N] [--delay N]]
+        call SITE --notified
+        ls [...]           -- list commserver object contents
+        h                  -- show short help
+        help               -- show man page
+        q|quit             -- exit
+
+BUGS
+    The dual interface complicates this method, and the query dialog
+    should be broken out into a separate method.
+
+AUTHOR
+    Ken.Irving@alaska.edu 2010
+
 
