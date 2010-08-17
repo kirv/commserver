@@ -16,21 +16,22 @@ self=.
 
 # default values for options:
 timeout=60
+callback_timeout=10
 delay=0
 priority=1
 unset notify
-unset notified
+unset callback
 
 start_time=$(date +%s)
 
-synopsis="$(basename $0) [--notify|--notified|-h|--help] [SITE [SITE_OPTIONS]]"
+synopsis="$(basename $0) [--notify|--callback|-h|--help] [SITE [SITE_OPTIONS]]"
 
 # parse and handle command line options:
 while test -n "$1" -a "${1:0:1}" == '-'; do
     opt=$1 && shift
     case $opt in
         --notify)   notify=1;;
-        --notified) notified=1;;
+        --callback) callback=1;;
         --help)     exec awk '/^NAME$/{ok=1}ok{print}' $0;;
         -h)         echo $synopsis && exit 0;;
         *)          error --exit 11 unknown option: $opt;;
@@ -77,17 +78,18 @@ qrystr="call $site ${query[@]}" # prepare for output in error messages
 i=0; while test -n "${query[i]}"; do
     case ${query[i]} in
         --notify)       notify=1 ;;
-        --notified)     notified=1 ;;
+        --callback)     callback=1 ;;
         --priority)     ((i+=1)); priority=${query[i]} ;;
         --timeout)      ((i+=1)); timeout=${query[i]} ;;
+        --callback-timeout)      ((i+=1)); callback_timeout=${query[i]} ;;
         --delay)        ((i+=1)); delay=${query[i]} ;;
         *)              error --exit 13 unknown option: ${query[i]} in "($qrystr)";;
     esac
     ((i+=1))
 done
 
-test -n "$notify" -a -n "$notified" &&
-    error --exit 28 both --notify and --notified given in query "<$qrystr>"
+test -n "$notify" -a -n "$callback" &&
+    error --exit 28 both --notify and --callback given in query "<$qrystr>"
 
 # make sure site exists and is a radio site:
 test -n "$site" || error --exit 26 no site specified in query "($qrystr)"
@@ -113,13 +115,13 @@ id=${id// /_} # just in case, replace any spaces with underscores
 ## query should fail.
 
 test -e .q-callback/$id && { # callback is pending for site, fail anything else
-    test -n "$notified" || error --exit 11 callback pending for $id, $site
+    test -n "$callback" || error --exit 11 callback pending for $id, $site
     rm .q-callback/$id && exec $tob $site.call
-    error --exit 17 failed to remove $id for $site from notified queue
+    error --exit 17 failed to remove $id for $site from callback queue
     }
 
 # the following error exit value was previously 29:
-test -n "$notified" && error --exit 1 invalid or late callback for $id
+test -n "$callback" && error --exit 1 invalid or late callback for $id
 
 # let the delay period expire...
 test -n "$delay" -a $delay -gt 0 && sleep $delay
@@ -147,14 +149,14 @@ done
 
 # now set link to site object in spool:
 # ... but first check that it's not already there!
-test -L .q-spool/$id && error --exit 22 site $site is already in spool on 2nd check
+test -L .q-spool/$id && error --exit 22 site $site is already in spool on 2nd check by pid $$
 ln -s ../$site .q-spool/$id
 
 # check to make sure the link actually points to a site object:
 test -e .q-spool/$id/@radio || {
     rm .q-spool/$id
-    error "LOCK: $(/bin/ls -l $site/@LOCK)"
-    error "PWD: $PWD"
+    error LOCK: $(/bin/ls -l $site/@LOCK)
+    error STAT: $(/usr/bin/stat $site/@LOCK)
     error --exit 23 failed to resolve $site site via symlink: .q-spool/$id
     }
 
@@ -176,26 +178,29 @@ test -e $site/@call-passed || error --exit 24 should not happen
 test $(<$site/@call-passed) == $$ ||
     error --exit 30 $id: pid $(<$site/@call-passed) was chosen, not $$
 
-# if a callback is requested, set a short timeout for it:
+# if --notify, set a hard link to @call-pid in the callback queue
 test -n "$notify" && {
-    now=$(date +%s)
-    future=$((now+10))
-    touch -d @$future $site/call-timeout
-    test -L .q-callback/$id && error --exit 25 site $site already in notified queue
-    ln -s ../$site .q-callback/$id
-    # inform client that the site can be called again with --notified
+    ln $site/@call-pid .q-callback/$id
+    # inform client that the site can be called again with --callback
     echo PASSED
-    # check to make sure the link actually points to a site object:
-    test -e .q-callback/$id/@radio || {
-        errlog=/tmp/commserver-run-q-callback-error
-        msg=$(printf "%s %s: %s symlink failed\n" \
-            $(date +%j:%H:%M:%S) $TOB_method .q-callback/$id)
-        echo "$msg" >> $errlog
-        stat .q-callback/$id >> $errlog
-        ls .q-callback/$id/ >> $errlog
-        ls $site/ >> $errlog
-        }
-    exit 0
+    # check to make sure the link actually contains the pid of this process:
+    test $(<.q-callback/$id) == $$ ||
+        error failed to set callback link?? .q-callback/$id
+
+    # wait until timeout period is up...
+    sleep $callback_timeout
+
+    # link should be gone...
+    test -e .q-callback/$id || exit 0 # callback was succesful!
+
+    # callback timed out with no call, so complain, remove, unlock route
+    test $(<.q-callback/$id) == $$ ||
+        error $id callback link has pid $(<.q-callback/$id) not $$
+
+    rm .q-callback/$id
+    $tob $site.unlock-route $id
+    error 31 $id callback timed out with no call
+    exit 1 # redundant...
     }
 
 exec $tob $site.call
@@ -222,7 +227,7 @@ DESCRIPTION
     given, places site in the 'callback' queue and exits.
 
     If a callback is pending, any CommServer.call on the site lacking
-    the --notified option will fail.  If --notified is given, the site
+    the --callback option will fail.  If --callback is given, the site
     is removed from the callback queue and RadioSite.call is invoked.
 
 DUAL INTERFACE
@@ -233,21 +238,33 @@ DUAL INTERFACE
     An application of the query dialog uses the /etc/inetd.conf 
     facility to accept connections from network hosts.  Three different
     ports can be configured, one to invoke call with no options, one
-    with the --notify option, and one with --notified..
+    with the --notify option, and one with --callback..
 
 OPTIONS
     --notify
-    --notified
-    --priority N -- N is any integer, higher wins
-    --timeout N  -- N in seconds before call query will time out and fail
-    --delay N    -- N in seconds before query is acted on
+        notify server when site is locked, then wait for callback
+
+    --callback
+        call server assuming callback is pending
+
+    --delay N    
+        N in seconds before query is acted on (default: 0)
+
+    --priority N 
+        N is any integer, higher wins (default: 1)
+
+    --timeout N  
+        N in seconds before call query will time out and fail (default: 60)
+
+    --callback-timeout N  
+        leave site in callback queue for N seconds (default: 10)
 
 QUERY DIALOG
     A prompt is displayed to the client, and several commands can
     be used:
 
         call SITE [--notify] [--priority N] [--timeout N] [--delay N]]
-        call SITE --notified
+        call SITE --callback
         ls [...]           -- list commserver object contents
         h                  -- show short help
         help               -- show man page

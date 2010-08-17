@@ -1,5 +1,5 @@
 #!/bin/bash
-# CommServer.run -- manage sites until .q-spool, .q, and .q-callback are empty
+# CommServer.run -- manage sites until .q-spool and .q are empty
 
 # exit if an instance is already running (pid file exists and is not stale):
 test -s .@run-pid && test -d /proc/$(<.@run-pid) && exit 1
@@ -181,54 +181,6 @@ process_queue() { # return value: 0 if empty, else 1
     return 1
     }
 
-check_notify_pool() { # check candidates for timeout
-    for q_site in .q-callback/*; do
-    
-        id=${q_site##*/}
-        test "$id" == '*' && return 0
-    
-        # leave site in queue if timeout has not expired:
-        test $q_site/call-timeout -nt .@run-tick && continue
-
-        # timeout has expired, so unlock route and remove site from pool
-
-        # but first, prep a debug error log and messages...
-        errlog=/tmp/commserver-run-q-callback-error
-        tmstamp=$(date +%j:%H:%M:%S)
-
-        test -e $q_site/@radio || {
-            msg=$(printf "%s: %s is not a site object!\n" $tmstamp $q_site)
-            echo "$msg" >> $errlog
-            warn "$msg"
-            stat $q_site >> $errlog
-            ls $q_site/ >> $errlog
-            }
-
-        s=$(/bin/readlink -f $q_site)
-        rm $q_site
-        notified_tmouts=$((notified_tmouts+1))
-
-        test -e $s/@radio || {
-            msg=$(printf "%s: %s does not resolve to a site object!\n" $tmstamp $s)
-            echo "$msg" >> $errlog
-            warn "$msg"
-            stat $s >> $errlog
-            ls $s/ >> $errlog
-            }
-
-        $tob $s.unlock-route $id || {
-            msg=$(printf "%s: %-24s: %s.unlock-route %s exited with %d\n" \
-                $tmstamp $q_site $s $id $?)
-            echo "$msg" >> $errlog
-            warn "$msg"
-            }
-            
-        ## NOTE: the above may still have a race condition...
-    
-    done
-    return 1
-    }
-
 check_locks() { # release lock if the pid value it contains is not active
     for lockpid in .q-lock/*; do
         test "${lockpid: -1:1}" == '*' && return 0 
@@ -262,7 +214,6 @@ loops=0
 passed=0
 queued=0
 tmouts=0
-notified_tmouts=0
 stale=0
 while true; do
     # quit if the pid file is not set
@@ -271,23 +222,22 @@ while true; do
     date +%s > .@run-tick
     now=$(<.@run-tick)
 
-  # process_spool && process_queue && check_notify_pool && exit 0
+  # process_spool && process_queue && exit 0
 
     process_spool; scan_spool=$?
     check_locks
     # process_queue() will make a choice if possible:
     process_queue; scan_queue=$?
-    check_notify_pool; scan_notified=$?
     
     available=()
 
     # exit values from the above will be 0 when directory is empty, i.e. done
-    test $scan_spool == 0 -a $scan_queue == 0 -a $scan_notified == 0 && {
+    test $scan_spool == 0 -a $scan_queue == 0 && {
         elapsed=$(($(date +%s)-$(<.@run-start)))
-        printf "%s.%s exiting after %d/%d passed/queued, %d+%d timeouts, %d loops, %d stale, %ds\n" \
-            $TOB_object $TOB_method $passed $queued $tmouts $notified_tmouts $loops $stale $elapsed
-        printf "%d passed, %d queued, %d q-tmout, %d n-tmout, %d loops, %d stale, %ds\n" \
-            $passed $queued $tmouts $notified_tmouts $loops $stale $elapsed | \
+        printf "%s.%s exiting after %d/%d passed/queued, %d timeouts, %d loops, %d stale, %ds\n" \
+            $TOB_object $TOB_method $passed $queued $tmouts $loops $stale $elapsed
+        printf "%d passed, %d queued, %d q-tmout, %d loops, %d stale, %ds\n" \
+            $passed $queued $tmouts $loops $stale $elapsed | \
             $tob $self.log.store
         exit 0
         }
