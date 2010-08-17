@@ -155,8 +155,16 @@ ln -s ../$site .q-spool/$id
 # check to make sure the link actually points to a site object:
 test -e .q-spool/$id/@radio || {
     rm .q-spool/$id
-    error LOCK: $(/bin/ls -l $site/@LOCK)
-    error STAT: $(/usr/bin/stat $site/@LOCK)
+    error PWD: $PWD
+    error $id: release lock: $($tob $site.LOCK)
+    test -e $site/@LOCK && {
+        error calling through site: $site.unlock-route $id
+        $tob $site.unlock-route $id
+        }
+    test -e $id/@LOCK && {
+        error calling through id: $id.unlock-route $id
+        $tob $id.unlock-route $id
+        }
     error --exit 23 failed to resolve $site site via symlink: .q-spool/$id
     }
 
