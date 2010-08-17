@@ -115,7 +115,7 @@ id=${id// /_} # just in case, replace any spaces with underscores
 ## query should fail.
 
 test -e .q-callback/$id && { # callback is pending for site, fail anything else
-    test -n "$callback" || error --exit 11 callback pending for $id, $site
+    test -n "$callback" || error --exit 11 callback pending for $id
     rm .q-callback/$id && exec $tob $site.call
     error --exit 17 failed to remove $id for $site from callback queue
     }
@@ -175,8 +175,11 @@ test -e $site/@call-failed && echo FAILED && exit 1
 test -e $site/@call-passed || error --exit 24 should not happen
 
 # check that passed attribute contains this pid
-test $(<$site/@call-passed) == $$ ||
+test $(<$site/@call-passed) == $$ || { # the pids do not match
+    error releasing $id.lock: $($tob $site.LOCK)
+    $tob $site.unlock-route $id
     error --exit 30 $id: pid $(<$site/@call-passed) was chosen, not $$
+    }
 
 # if --notify, set a hard link to @call-pid in the callback queue
 test -n "$notify" && {
