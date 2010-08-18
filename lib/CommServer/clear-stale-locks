@@ -1,0 +1,28 @@
+#!/bin/bash
+
+log=/tmp/commserver-cleared-locks
+
+tob=/usr/local/bin/tob
+self=.
+
+maxage=3600
+test -n "$1" && maxage=$1
+
+time=$(/bin/date --iso=sec)
+while read record; do
+    test "${record#*--}" == "$record" && continue # line does not show a lock
+    age=${record%% *}
+
+    test $age -gt $maxage || continue
+
+    target=${record% --*}
+    target=${target##* }
+
+    $tob $target.unlock-route
+
+    if test $? == 0; then result="OK"; else result="FAILED"; fi
+
+    printf "%s, %s.unlock-route, %s, %s\n" $time $target $result "$record" >> $log
+    
+done < <($tob $self.show-locks --age)
+
