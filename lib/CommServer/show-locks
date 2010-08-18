@@ -2,17 +2,18 @@
 
 synopsis="server.show-locks [--help]"
 
+error() { printf "%s\n" "$*" &>2; exit 1; }
+
 while test -n "$1"; do 
     arg=$1 && shift
     case $arg in
-        --help)
-            exec awk '/^NAME/,0{print}' $0
-            ;;
-        *)  printf "unknown argument: %s; synopsis:\n\t%s\n" $arg "$synopsis" >&2
-            exit 1
-            ;;
+        --age)  show_age=1 ;;
+        --help) exec awk '/^NAME/,0{print}' $0 ;;
+        *)      error "unknown argument: $arg; syopsis: $synopsis" ;;
     esac
 done
+
+now=$(date +%s)
 
 count=0
 for lock in */@LOCK; do
@@ -34,9 +35,28 @@ for lock in */@LOCK; do
         nodelist=(${nodelist[@]} $tag)
     done
 
-    printf "%d " $((${#nodelist[@]}+1))
+    locktime=$(stat -c %y $lock)
+    locktime=${locktime%.0*}
+    locktime=${locktime#*-}
+
+    age=$((now-$(stat -c %Y $lock)))
+    callpid=$(<${lock%@LOCK}/@call-pid)
+    pidstatus=stale
+    test -e /proc/$callpid && pidstatus=active
+
+    if test -n "$show_age"; then
+        printf "%s " "$age"
+    else
+        printf "%s " "$locktime"
+    fi
+
+  # printf "%d " $((${#nodelist[@]}+1))
+
     printf "%s --> " ${nodelist[@]}
-    printf "%s\n" $(<${lock%/*}/@id)
+    printf "%s -- %s\n" $(<${lock%/*}/@id) $callpid
+
+  # printf "%s -- %s %s\n" $(<${lock%/*}/@id) $callpid $pidstatus
+
 done
 
 printf "%d locks\n" $count
