@@ -184,7 +184,8 @@ test -e $site/@call-passed || error --exit 24 should not happen
 
 # check that passed attribute contains this pid
 test $(<$site/@call-passed) == $$ || { # the pids do not match
-    error releasing $id.lock: $($tob $site.LOCK)
+    nodes=($($tob $site.LOCK))
+    error releasing $id.lock: "${nodes[*]#*_/}"
     $tob $site.unlock-route $id
     error --exit 30 $id: pid $(<$site/@call-passed) was chosen, not $$
     }
