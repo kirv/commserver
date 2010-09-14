@@ -26,3 +26,26 @@ while read record; do
     
 done < <($tob $self.show-locks --age)
 
+exit
+
+NAME
+    CommServer.clear-stale-locks
+
+DESCRIPTION
+    Intended to be run periodically from cron, the cleared-stale-locks method 
+    inspects the output from the CommServer.show-locks --age method to find
+    locks that have been in place longer than the specified or default maximum
+    age.
+
+    Output of show-locks --age looks like:
+
+        $ commserver.show-locks --age
+        38 toolik --> imnavait-mtn --> itik-rep --> hatboxmesa -- 17436
+        99 deadhorse --> fb-rep --> white-hills --> may-ck -- 17626
+
+    A record should be written to the log file if a 'stale' lock is found and
+    removed.
+
+AUTHOR
+    Ken.Irving@alaska.edu 2010
+
