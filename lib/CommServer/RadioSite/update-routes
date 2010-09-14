@@ -46,7 +46,7 @@ for link in linkto/*; do
 
     ## skip any link already visited:
     for hop in $*; do
-        test $hop == $link &&
+        test "$hop" == "$link" &&
             continue 2
     done
 
@@ -55,4 +55,4 @@ for link in linkto/*; do
         exit 1
 
 done
-    
+
