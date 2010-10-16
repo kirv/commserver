@@ -1,11 +1,11 @@
 #!/bin/bash
 
-self=.
-
+test -n "$1" && {
+    test $1 == --help && /usr/bin/awk '/^NAME/{ok=1}ok{print}' $0 && exit
+    exit 1
+    }
 test -e radio-hold=ON && exit 0
-
 test -e radio-power=ON && rm radio-power=ON
-
 exit
 
 NAME
