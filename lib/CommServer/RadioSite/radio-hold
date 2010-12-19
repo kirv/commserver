@@ -1,42 +1,52 @@
 #!/bin/bash
 
-synopsis="radio-hold [set [1|0|on|off]]"
-
 error () {
-    printf "%s\n" "$*"
+    echo "synopsis: radio-hold [set|is on|off]" >&2
     exit 1
     }
 
-test -n "$1" && {
-    test $1 == set || error $synopsis
-    new_state=ON
-    test -n "$2" && new_state=$2
-    case $new_state in
-        1|on|On|ON)
-            touch radio-hold=ON
-            ;;
-        0|off|Off|OFF)
-            test -e radio-hold=ON && rm radio-hold=ON
-            ;;
-        *)
-            error unknown command: set $new_state
-    esac
+test "$1" || {
+    test -e radio-hold=ON && echo on && exit
+    echo off
+    exit
     }
 
-test -e radio-hold=ON
+test "$2" || error
+
+shopt -s nocasematch   # allow any case for arg 2, 'on' or 'off'
+
+test $1 = is && { # test assertion and exit with true or false
+    state=off
+    test -e radio-hold=ON && state=on
+    case $2 in
+        on)     test $state = on; exit ;;
+        off)    test $state = off; exit ;;
+        *)      error;;
+    esac
+
+    }
+
+test $1 = set || error
+
+# set the attribute to the state given in arg 2:
+
+case $2 in
+    on)     touch radio-hold=ON ;;
+    off)    test -e radio-hold=ON && rm radio-hold=ON ;;
+    *)      error
+esac
+
 exit
     
 NAME
-    radio-hold -- optionally set or clear radio-hold attribute, return state
+    radio-hold -- show state, set state, or test assertion of state
 
 SYNOPSIS
-    radio-hold [set [1|on|0|off]]
+    radio-hold [set|is [on|off]]
 
 DESCRIPTION
+    Attribute file radio-hold=ON represents state, only exists if state is on.
     
-EXIT STATUS
-    0 or 1 (true or false) if radio-hold=ON attribute is set or not
-
 AUTHOR
     ken.irving@alaska.edu (c) 2010
 

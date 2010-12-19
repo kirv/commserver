@@ -1,12 +1,30 @@
 #!/bin/bash
 
-test -n "$1" || {
-    exec ls -1 linkto
+test -d linkto || {
+    echo "no linkto/ container found in $TOB_object" 1>&2
+    exit 1
     }
 
-for link in $*; do
-    ls -l linkto/$link
-done
+test -n "$1" || {
+    exec ls linkto
+    }
+
+command=$1
+case $command in
+    add)
+        ;;
+    del | delete)
+        ;;
+    show)
+        ;;
+    *
+        command=show
+        ;;
+esac
+
+# for link in $*; do
+#     ls -l linkto/$link
+# done
 
 
 exit

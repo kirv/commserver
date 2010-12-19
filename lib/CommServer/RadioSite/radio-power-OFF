@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 test -n "$1" && {
     test $1 == --help && /usr/bin/awk '/^NAME/,/^DUMMY/' $0 && exit
@@ -10,8 +10,6 @@ exit
 
 NAME
     radio-power-OFF -- remove radio-power attribute unless radio-hold is on
-
-DESCRIPTION
 
 AUTHOR
     ken.irving@alaska.edu (c) 2010

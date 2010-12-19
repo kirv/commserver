@@ -23,20 +23,22 @@ test -n "$1" && {
     esac
     }
 
-test -e radio-power=ON
+if test -e radio-power=ON; then
+    echo on
+else
+    echo off
+fi
 exit
     
 NAME
-    radio-power -- optionally set or clear radio-power attribute, return state
+    radio-power -- optionally set or clear radio-power attribute, show state
 
 SYNOPSIS
     radio-power [set [1|on|0|off]]
 
 DESCRIPTION
+    print on or off to stdout
     
-EXIT STATUS
-    0 or 1 (true or false) if radio-power=ON attribute is set or not
-
 AUTHOR
     ken.irving@alaska.edu (c) 2010
 
