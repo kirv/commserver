@@ -1,43 +1,50 @@
 #!/bin/bash
 
-synopsis="radio-power [set [1|0|on|off]]"
-
 error () {
-    printf "%s\n" "$*"
+    echo "synopsis: radio-power [set|is on|off]" >&2
     exit 1
     }
 
-test -n "$1" && {
-    test $1 == set || error $synopsis
-    new_state=ON
-    test -n "$2" && new_state=$2
-    case $new_state in
-        1|on|On|ON)
-            touch radio-power=ON
-            ;;
-        0|off|Off|OFF)
-            test -e radio-power=ON && rm radio-power=ON
-            ;;
-        *)
-            error unknown command: set $new_state
+test "$1" || {
+    test -e radio-power=ON && echo on && exit
+    echo off
+    exit
+    }
+
+test "$2" || error
+
+shopt -s nocasematch   # allow any case for arg 2, 'on' or 'off'
+
+test $1 = is && { # test assertion and exit with true or false
+    state=off
+    test -e radio-power=ON && state=on
+    case $2 in
+        on)     test $state = on; exit ;;
+        off)    test $state = off; exit ;;
+        *)      error;;
     esac
     }
 
-if test -e radio-power=ON; then
-    echo on
-else
-    echo off
-fi
+test $1 = set || error
+
+# set the attribute to the state given in arg 2:
+
+case $2 in
+    on)     touch radio-power=ON ;;
+    off)    test -e radio-power=ON && rm radio-power=ON ;;
+    *)      error
+esac
+
 exit
     
 NAME
-    radio-power -- optionally set or clear radio-power attribute, show state
+    radio-power -- show state, set state, or test assertion of state
 
 SYNOPSIS
-    radio-power [set [1|on|0|off]]
+    radio-power [set|is [on|off]]
 
 DESCRIPTION
-    print on or off to stdout
+    Attribute file radio-power=ON represents state, only exists if state is on.
     
 AUTHOR
     ken.irving@alaska.edu (c) 2010
