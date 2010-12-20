@@ -31,7 +31,7 @@ test $1 = set || error
 
 case $2 in
     on)     touch radio-power=ON ;;
-    off)    test -e radio-power=ON && rm radio-power=ON ;;
+    off)    test -e radio-power=ON && test ! -e radio-hold=ON && rm radio-power=ON ;;
     *)      error
 esac
 
