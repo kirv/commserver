@@ -2,7 +2,7 @@
 
 self=.
 
-test $n "$1" && test $1 == --max-hops && shift && max_hops=$1 && shift
+test -n "$1" && test $1 == --max-hops && shift && max_hops=$1 && shift
 
 ## called with no arguments, generate the @routes property:
 test -n "$1" || {
@@ -12,7 +12,7 @@ test -n "$1" || {
     echo update routes n=$(wc -l < @routes) tm=$tm |
         tob log.store
     tob $self.rank-routes
-    awk 'NR==1{print NF}' @routes > @min-hops
+    awk 'NR==1{print NF}' @routes > @min-hops-required
     exit 
     }
 

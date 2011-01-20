@@ -1,0 +1,27 @@
+CommServer or DataSite/CommServer
+
+The CommServer thinobject class implements a machine to manage calls
+to remote devices using FreeWave data modem radios.
+
+(NOTE: The CommServer should perhaps also support other types of
+connections, e.g., through a local or remote serial port, cell phones,
+etc., and that should be supported, but the current focus is on networks
+of FreeWave radios.)
+
+A CommServer object is assumed to contain 'sites' either directly or
+in the _/ container.  Those sites may be either RadioSite types, which
+must have a @radio attribute, or RadioBase types, which must have an
+%ip2radio attribute or equivalent.
+
+The CommServer.call method is used to make a query on a site while obeying
+limits and conventions of the commserver class.  
+
+(NOTE: Both the RadioSite and RadioBase class also have call methods,
+but those are at a lower level, i.e., the CommServer's conventions are out
+of their scope.  CommServer.call itself execs RadioSite.call, which in 
+turn runs RadioBase.call in a shell or as a subprocess.  Users of the system
+would be advised to use only the commserver object's call method, and not
+the other ones.  See the @DESCRIPTION property in those classes.)
+
+
+

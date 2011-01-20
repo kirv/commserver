@@ -1,0 +1,14 @@
+#!/bin/sh
+
+cd tmp/comms/nslope || exit 2
+
+nodes="wk-met snowfence imnavait"
+
+for node in $nodes; do
+    tob $node.unlock-route &&
+        tob $node.log.tail -n 1 @2009*
+done
+
+
+
+

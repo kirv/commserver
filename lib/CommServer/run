@@ -91,7 +91,7 @@ choose_route() { # given a site, find first available route
     esac || return 1
     ## assert: the site is powered and not locked, so iterate on its @routes list
     local max_hops=$max_hops
-    test -e $site/@max-hops && max_hops=$(<$site/@max-hops) ## bad! should check tob attribute...
+    test -e $site/@max-hops-allowed && max_hops=$(<$site/@max-hops-allowed) ## bad! should check tob attribute...
     ## 
     unset route
     while read -a rte; do
@@ -143,9 +143,9 @@ process_queue() { # return value: 0 if empty, else 1
 
         # calculate one or more metrics based on the route...
     
-        # metric for number of hops over minimum:
+        # metric for number of hops in route over minimum required:
         min_hops=1
-        test -e $site/@min-hops && min_hops=$(<$site/@min-hops)
+        test -e $site/@min-hops-required && min_hops=$(<$site/@min-hops-required)
         extra_hops=$(( (${#route[@]} - min_hops) * 20 ))
     
         # age is time in seconds since last successful session:

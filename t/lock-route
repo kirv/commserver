@@ -1,0 +1,17 @@
+#!/bin/sh
+
+cd tmp/comms/nslope || exit 2
+
+nodes=$(printf "%s\n" wk-met snowfence imnavait | shuf)
+
+for node in $nodes; do
+    if tob $node.lock-route; then
+        tob $node.log.tail -n 1 @2009*
+    else
+        printf "node %s already locked\n" $node
+    fi
+done
+
+
+
+

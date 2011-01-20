@@ -1,14 +1,11 @@
 #!/bin/sh
 
-test $n "$1" && {
-    echo $1 > @min-hops
+test -n "$1" && {
+    echo $1 > @min-hops-required
     exit 0
     }
 
-test -e @routes || {
-    echo no @routes property >&2
-    exit 1
-    }
+test -e @routes || exit 1
 
-awk 'NR==1{print NF}' @routes > @min-hops
+awk 'NR==1{print NF}' @routes > @min-hops-required
 

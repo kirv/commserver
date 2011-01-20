@@ -1,0 +1,7 @@
+CommServer site locks
+
+Each RadioSite object can be marked as being in use by the presence
+of a lock file, @LOCK.  Another name might be better, maybe just LOCK,
+but for now I'll leave it.
+
+RadioSite.lock-route tries to find and lock a route 
