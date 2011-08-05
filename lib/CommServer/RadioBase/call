@@ -175,9 +175,18 @@ $exp->expect($timeout, "Enter all zeros") # (000-0000) as your last number in li
 
 my $callbook = FreeWave_Radio::Callbook->new($exp->before());
 my $entry;
-$entry = $callbook->repeater_path_entry($rep_path) if defined $rep_path;
+# $entry = $callbook->repeater_path_entry($rep_path) if defined $rep_path;
+if ( defined $rep_path ) {
+    $entry = $callbook->repeater_path_entry($rep_path);
+    log_steps("repeater_path_entry($rep_path) -> <$entry>");
+    }
+else {
+    $entry = $callbook->radio_path_entry($radio);
+    log_steps("radio_path_entry($radio) -> <$entry>");
+    }
 
-log_steps("using repaater path $entry") if defined $entry;
+# log_steps("using repaater path $entry") if defined $entry;
+log_steps("using callbook entry $entry") if defined $entry;
 
 my $entry_type = defined $entry ? 'exists' : 'new';
 
@@ -404,7 +413,7 @@ sub file_contents {
         }
     close FILE or die $!;
     return $content[0] if scalar @content == 1;
-    return @content;
+    return (@content);
     }
 
 sub set_property {

@@ -12,6 +12,7 @@ set host ""
 set port ""
 set tmout 300
 set opts ""
+set routefile ""
 
 foreach arg $argv {
     regexp {([^=]+)=(.*)} $arg * tag val
@@ -20,12 +21,13 @@ foreach arg $argv {
         "--host" { set host $val }
         "--port" { set port $val }
         "--timeout" { set tmout $val }
+        "--store-route" { set routefile $val }
         default { lappend opts $arg }
         }
     }
 
 if { $site == "" || $host == "" || $port == "" } {
-    puts "synopsis: $argv0 --site=SITE --host=HOST --port=PORT \[--timeout=SEC\] \[...\]"
+    puts "synopsis: $argv0 --site=SITE --host=HOST --port=PORT \[--timeout=SEC\] \[--store-route=FILE\] \[...\]"
     exit 1
     }
 
@@ -40,6 +42,18 @@ expect {
 set timeout [expr $tmout+10]
 expect {
     FAILED { exit 1 }
+    "PASSED *" {
+        if { $routefile == "" } { exit 0 }
+        if [catch {set file [open $routefile w]} errormsg] {
+            puts "warning: $errormsg"
+            exit 0
+            }
+        # file handle is available for writing
+        # string index 7 is the first character of the radio path
+        puts $file [string range $expect_out(buffer) 7 end]
+        close $file
+        exit 0
+        }
     PASSED { exit 0 }
     }
 
