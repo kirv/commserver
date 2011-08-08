@@ -1,7 +1,7 @@
 #!/usr/bin/expect -f
 
 # request-commserver-session SITE HOST PORT
-# connect to commserver (via inetd.conf on remote host)
+# connect to commserver )via inetd.conf on remote host)
 # enter 'call site' command at 'query:' prompt
 # wait for either PASSED or FAILED string and:
 #   if FAILED, exit with status 1
@@ -12,7 +12,8 @@ set host ""
 set port ""
 set tmout 300
 set opts ""
-set routefile ""
+set log ""
+set tm0 [clock seconds]
 
 foreach arg $argv {
     regexp {([^=]+)=(.*)} $arg * tag val
@@ -21,13 +22,13 @@ foreach arg $argv {
         "--host" { set host $val }
         "--port" { set port $val }
         "--timeout" { set tmout $val }
-        "--store-route" { set routefile $val }
+        "--log" { set log $val }
         default { lappend opts $arg }
         }
     }
 
 if { $site == "" || $host == "" || $port == "" } {
-    puts "synopsis: $argv0 --site=SITE --host=HOST --port=PORT \[--timeout=SEC\] \[--store-route=FILE\] \[...\]"
+    puts "synopsis: $argv0 --site=SITE --host=HOST --port=PORT \[--timeout=SEC\] \[--log=FILE\|CMD\] \[...\]"
     exit 1
     }
 
@@ -39,19 +40,45 @@ expect {
     query: { send "call $site --notify --timeout=$tmout $opts\r" }
     }
 
+proc writelog {msg} {
+    global log tm0 env argv0
+
+    if { $log == "" } return
+
+    set app [file tail $argv0]
+
+    # add elapsed time as 'tm=SECONDS' to log message
+    set elapsed tm=[expr {[clock seconds] - $tm0}]
+
+    set logmsg [list $app $msg $elapsed]
+
+    # identify user if defined, i.e., not a cron or at job
+    if { $env(USER) != "" } { lappend logmsg "user=$env(USER)" }
+
+    if { [file executable $log] } {
+        exec $log [join $logmsg ", "] &
+        return
+        }
+
+    # compose ISO 8601 timestamp for log message:
+    set logmsg [linsert $logmsg 0 [clock format [clock seconds] -format {%Y-%m-%d %T%z}]]
+
+    if [catch {set file [open $log a]} errormsg] {
+        puts stderr "$argv0: $errormsg"
+        puts stderr [join $logmsg ", "]
+        return
+        }
+    
+    puts $file [join $logmsg ", "]
+    close $file
+    }
+
 set timeout [expr $tmout+10]
 expect {
     FAILED { exit 1 }
     "PASSED *" {
-        if { $routefile == "" } { exit 0 }
-        if [catch {set file [open $routefile w]} errormsg] {
-            puts "warning: $errormsg"
-            exit 0
-            }
-        # file handle is available for writing
         # string index 7 is the first character of the radio path
-        puts $file [string range $expect_out(buffer) 7 end]
-        close $file
+        writelog [string range $expect_out(buffer) 7 end]
         exit 0
         }
     PASSED { exit 0 }
