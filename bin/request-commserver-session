@@ -16,7 +16,6 @@ set tmout 300
 set opts ""
 set log ""
 set tm0 [clock seconds]
-set caller ""
 
 foreach arg $argv {
     regexp {([^=]+)=(.*)} $arg * tag val
@@ -29,7 +28,6 @@ foreach arg $argv {
             set log $val
             lappend opts --log
             }
-        "--caller" { set caller $val }
         default { lappend opts $arg }
         }
     }
@@ -47,15 +45,32 @@ expect {
     query: { send "call $site --notify --timeout=$tmout $opts\r" }
     }
 
+proc get_caller_name {} {
+    # get parent pid from process status file in /proc/PID/status
+    # then get parent process name from /proc/PPID/cmdline
+    set pstatus [open /proc/[pid]/status]
+    while {[gets $pstatus line] != -1} {
+        if { [string first "PPid:" $line] == 0 } {
+            set ppid [string range $line 6 end]
+            break
+            }
+        }
+    close $pstatus
+    set ppcmdline [open /proc/$ppid/cmdline]
+    set ppname [read $ppcmdline]
+    close $ppcmdline
+    return [file tail $ppname]
+    }
+
 proc writelog {msg} {
-    global log tm0 env argv0 caller
+    global log tm0 env argv0
 
     if { $log == "" } return
 
     set app [file tail $argv0]
     set logmsg [list $app]
 
-    if { $caller != "" } { lappend logmsg "caller=$caller" }
+    lappend logmsg [get_caller_name]
 
     # add elapsed time as 'tm=SECONDS' to log message
     set elapsed tm=[expr {[clock seconds] - $tm0}]
@@ -63,7 +78,7 @@ proc writelog {msg} {
     lappend logmsg $msg $elapsed
 
     # identify user if defined, i.e., not a cron or at job
-    if { $env(USER) != "" } { lappend logmsg "user=$env(USER)" }
+    if { [info exists env(USER)] } { lappend logmsg "user=$env(USER)" }
 
     if { [file executable $log] } {
         exec $log [join $logmsg ", "] &
