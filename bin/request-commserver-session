@@ -45,21 +45,32 @@ expect {
     query: { send "call $site --notify --timeout=$tmout $opts\r" }
     }
 
-proc get_caller_name {} {
-    # get parent pid from process status file in /proc/PID/status
-    # then get parent process name from /proc/PPID/cmdline
-    set pstatus [open /proc/[pid]/status]
+proc get_ppid {pid} {
+    # extract parent's pid from /proc/$pid/status
+    set pstatus [open /proc/$pid/status]
     while {[gets $pstatus line] != -1} {
         if { [string first "PPid:" $line] == 0 } {
-            set ppid [string range $line 6 end]
-            break
+            return [string range $line 6 end]
             }
         }
-    close $pstatus
-    set ppcmdline [open /proc/$ppid/cmdline]
-    set ppname [read $ppcmdline]
-    close $ppcmdline
-    return [file tail $ppname]
+    }
+
+proc get_proc_status_name {pid} {
+    set pid_status [open /proc/$pid/status]
+    gets $pid_status name
+    return [string range $name 6 end]
+    }
+
+proc get_caller_name {} {
+    set ppid [get_ppid [pid]]
+    set name [get_proc_status_name $ppid]
+    puts stderr "COMPARE: <$name> <siterc-cmd>"
+    if {[string compare $name "siterc-cmd"] == 0} {
+        puts stderr MATCHED
+        set ppid [get_ppid $ppid]
+        set name [get_proc_status_name $ppid]
+        }
+    return $name
     }
 
 proc writelog {msg} {
@@ -68,14 +79,11 @@ proc writelog {msg} {
     if { $log == "" } return
 
     set app [file tail $argv0]
-    set logmsg [list $app]
-
-    lappend logmsg [get_caller_name]
 
     # add elapsed time as 'tm=SECONDS' to log message
     set elapsed tm=[expr {[clock seconds] - $tm0}]
 
-    lappend logmsg $msg $elapsed
+    set logmsg [list $app "by=[get_caller_name]" $msg $elapsed]
 
     # identify user if defined, i.e., not a cron or at job
     if { [info exists env(USER)] } { lappend logmsg "user=$env(USER)" }
