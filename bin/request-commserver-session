@@ -64,9 +64,7 @@ proc get_proc_status_name {pid} {
 proc get_caller_name {} {
     set ppid [get_ppid [pid]]
     set name [get_proc_status_name $ppid]
-    puts stderr "COMPARE: <$name> <siterc-cmd>"
     if {[string compare $name "siterc-cmd"] == 0} {
-        puts stderr MATCHED
         set ppid [get_ppid $ppid]
         set name [get_proc_status_name $ppid]
         }
