@@ -1,11 +1,13 @@
 #!/usr/bin/expect -f
 
 # request-commserver-session SITE HOST PORT
-# connect to commserver )via inetd.conf on remote host)
+# connect to commserver via inetd.conf on remote host
 # enter 'call site' command at 'query:' prompt
 # wait for either PASSED or FAILED string and:
 #   if FAILED, exit with status 1
 #   if PASSED, exit with status 0
+# if --log FILE is given, --log is included in the commserver query,
+#   and we expect to see PASSED <RADIO ROUTE> in the return message
 
 set site ""
 set host ""
@@ -14,6 +16,7 @@ set tmout 300
 set opts ""
 set log ""
 set tm0 [clock seconds]
+set caller ""
 
 foreach arg $argv {
     regexp {([^=]+)=(.*)} $arg * tag val
@@ -22,7 +25,11 @@ foreach arg $argv {
         "--host" { set host $val }
         "--port" { set port $val }
         "--timeout" { set tmout $val }
-        "--log" { set log $val }
+        "--log" {
+            set log $val
+            lappend opts --log
+            }
+        "--caller" { set caller $val }
         default { lappend opts $arg }
         }
     }
@@ -41,16 +48,19 @@ expect {
     }
 
 proc writelog {msg} {
-    global log tm0 env argv0
+    global log tm0 env argv0 caller
 
     if { $log == "" } return
 
     set app [file tail $argv0]
+    set logmsg [list $app]
+
+    if { $caller != "" } { lappend logmsg "caller=$caller" }
 
     # add elapsed time as 'tm=SECONDS' to log message
     set elapsed tm=[expr {[clock seconds] - $tm0}]
 
-    set logmsg [list $app $msg $elapsed]
+    lappend logmsg $msg $elapsed
 
     # identify user if defined, i.e., not a cron or at job
     if { $env(USER) != "" } { lappend logmsg "user=$env(USER)" }
@@ -77,8 +87,9 @@ set timeout [expr $tmout+10]
 expect {
     FAILED { exit 1 }
     "PASSED *" {
-        # string index 7 is the first character of the radio path
-        writelog [string range $expect_out(buffer) 7 end]
+        set pos [string first PASSED $expect_out(buffer)]
+        set end [string last "\r\n" $expect_out(buffer)]
+        writelog [string range $expect_out(buffer) [expr $pos + 7] [expr $end-1]]
         exit 0
         }
     PASSED { exit 0 }

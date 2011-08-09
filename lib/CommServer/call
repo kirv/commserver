@@ -24,7 +24,7 @@ unset callback
 
 start_time=$(date +%s)
 
-synopsis="$(basename $0) [--notify|--callback|-h|--help] [SITE [SITE_OPTIONS]]"
+synopsis="$(basename $0) [--notify|--callback|-h|--help] [--log] [SITE [SITE_OPTIONS]]"
 
 # parse and handle command line options:
 while test -n "$1" -a "${1:0:1}" == '-'; do
@@ -77,6 +77,7 @@ qrystr="call $site ${query[@]}" # prepare for output in error messages
 # parse query (note that some options may also have been on command line):
 i=0; while test -n "${query[i]}"; do
     case ${query[i]} in
+        --log)          logroute=1;;
         --notify)       notify=1 ;;
         --callback)     callback=1 ;;
         --priority)     ((i+=1)); priority=${query[i]} ;;
@@ -193,8 +194,12 @@ test $(<$site/@call-passed) == $$ || { # the pids do not match
 # if --notify, set a hard link to @call-pid in the callback queue
 test -n "$notify" && {
     ln $site/@call-pid .q-callback/$id
+
+    test -n "$logroute" &&
+        route=($(for s in $($tob $site.LOCK); do $tob $s.id; done) $id)
+
     # inform client that the site can be called again with --callback
-    echo PASSED
+    echo "PASSED ${route[*]}"
     # check to make sure the link actually contains the pid of this process:
     test $(<.q-callback/$id) == $$ ||
         error failed to set callback link?? .q-callback/$id
